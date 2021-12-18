@@ -17,7 +17,7 @@ setup(
     install_requires=['lintly', 'flake8', 'mypy', 'pylint'],
     entry_points={
         'console_scripts': [
-            'python-lint = python-lint.cli:main',
+            'python-lint = python_lint.cli:main',
         ],
     },
     classifiers=[
