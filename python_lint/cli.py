@@ -10,7 +10,7 @@ import tempfile
 import asyncio
 import logging
 import json
-from typing import Any, NoReturn, Optional
+from typing import Any, NoReturn, Optional, Dict, List
 
 logger = logging.getLogger('python-lint')
 
@@ -33,7 +33,7 @@ class Linter:
     cmdline: str
     regex: str
 
-    async def lint(self, cmdline_args: 'dict[str, Any]') -> 'list[Issue]':
+    async def lint(self, cmdline_args: Dict[str, Any]) -> List[Issue]:
         """Run the linter and return a list of issues"""
         cmdline = self.cmdline.format(**cmdline_args)
         logger.debug(f'{self.name} cmdline: {cmdline}')
@@ -41,7 +41,7 @@ class Linter:
         stdout, stderr = await proc.communicate()
         logger.debug(f'{self.name} wrote:\nstdout: {stdout!r}\nstderr: {stderr!r}, return code: {proc.returncode}')
         cregex = re.compile(self.regex)
-        issues: list[Issue] = []
+        issues: List[Issue] = []
         for line in stdout.decode('utf-8').splitlines():
             result = cregex.fullmatch(line)
             if result:
@@ -53,17 +53,22 @@ class Linter:
         return issues
 
 
-def lintly(issues: 'list[Issue]') -> None:
+def lintly(issues: List[Issue]) -> None:
     """Run lintly on the issues"""
-    issues_json = [{'path': issue.file, 'line': issue.line, 'column': issue.col, 'message-id': issue.code, 'message': issue.text, 'symbol': issue.source}
-                   for issue in issues]
+    issues_json = [{
+        'path': issue.file,
+        'line': int(issue.line or '1'),
+        'column': int(issue.col or '0'),
+        'message-id': issue.code or '',
+        'message': issue.text or '',
+        'symbol': issue.source} for issue in issues if issue.file]
     with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as lintly_cmd:
         lintly_cmd.write('from lintly.cli import main\nmain()')
-    subprocess.run([sys.executable, lintly_cmd.name, '--log', '--no-request-changes', '--use-checks', '--format=pylint-json'], check=False,
+    subprocess.run([sys.executable, lintly_cmd.name, '--log', '--no-request-changes', '--format=pylint-json'], check=False,
                    input=json.dumps(issues_json), text=True)
 
 
-async def amain(argv: 'list[str]') -> int:
+async def amain(argv: List[str]) -> int:
     """Run linting tools on the code"""
     parser = argparse.ArgumentParser()
     parser.add_argument('--path', default='.')
@@ -73,7 +78,7 @@ async def amain(argv: 'list[str]') -> int:
     logging.basicConfig(level=logging.DEBUG)
 
     linters = [
-        Linter(name='mypy', cmdline='"{exe}" -m mypy --namespace-packages "{path}"',
+        Linter(name='mypy', cmdline='"{exe}" -m mypy --show-error-codes --show-column-numbers --no-color-output --no-error-summary "{path}"',
                regex='(?P<file>.*\\.py):(?:(?P<line>\\d*):)?(?:(?P<col>\\d*):)? [^:]*: (?P<text>.*)'),
         Linter(name='pylint', cmdline='"{exe}" -m pylint {files}', regex='(?P<file>[^:]*):(?P<line>\\d*):(?P<col>\\d*): (?P<code>[^:]*): (?P<text>.*)'),
         Linter(name='flake8', cmdline='"{exe}" -m flake8 "{path}"', regex='(?P<file>[^:]*):(?P<line>\\d*):(?P<col>\\d*): (?P<code>[^ ]*) (?P<text>.*)'),
@@ -85,7 +90,7 @@ async def amain(argv: 'list[str]') -> int:
     files = [os.path.join(root, file) for root, _, files in os.walk(option.path) for file in files if file.endswith('.py') and not has_dot(root)]
     cmdline_args = {'exe': sys.executable, 'path': option.path, 'files': ' '.join((f'"{file}"' for file in files))}
 
-    issues: 'list[Issue]' = sum(list(await asyncio.gather(*[linter.lint(cmdline_args) for linter in linters])), start=[])
+    issues: List[Issue] = sum(list(await asyncio.gather(*[linter.lint(cmdline_args) for linter in linters])), start=[])
 
     for issue in issues:
         logger.error(repr(issue))
