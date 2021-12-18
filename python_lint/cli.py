@@ -33,7 +33,7 @@ class Linter:
     cmdline: str
     regex: str
 
-    async def lint(self, cmdline_args: dict[str, Any]) -> list[Issue]:
+    async def lint(self, cmdline_args: 'dict[str, Any]') -> 'list[Issue]':
         """Run the linter and return a list of issues"""
         cmdline = self.cmdline.format(**cmdline_args)
         logger.debug(f'{self.name} cmdline: {cmdline}')
@@ -53,7 +53,7 @@ class Linter:
         return issues
 
 
-def lintly(issues: list[Issue]) -> None:
+def lintly(issues: 'list[Issue]') -> None:
     """Run lintly on the issues"""
     issues_json = [{'path': issue.file, 'line': issue.line, 'column': issue.col, 'message-id': issue.code, 'message': issue.text, 'symbol': issue.source}
                    for issue in issues]
@@ -63,7 +63,7 @@ def lintly(issues: list[Issue]) -> None:
                    input=json.dumps(issues_json), text=True)
 
 
-async def amain(argv: list[str]) -> int:
+async def amain(argv: 'list[str]') -> int:
     """Run linting tools on the code"""
     parser = argparse.ArgumentParser()
     parser.add_argument('--path', default='.')
@@ -85,7 +85,7 @@ async def amain(argv: list[str]) -> int:
     files = [os.path.join(root, file) for root, _, files in os.walk(option.path) for file in files if file.endswith('.py') and not has_dot(root)]
     cmdline_args = {'exe': sys.executable, 'path': option.path, 'files': ' '.join((f'"{file}"' for file in files))}
 
-    issues: list[Issue] = sum(list(await asyncio.gather(*[linter.lint(cmdline_args) for linter in linters])), start=[])
+    issues: 'list[Issue]' = sum(list(await asyncio.gather(*[linter.lint(cmdline_args) for linter in linters])), start=[])
 
     for issue in issues:
         logger.error(repr(issue))
