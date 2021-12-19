@@ -4,7 +4,7 @@ from setuptools import setup  # type: ignore
 
 setup(
     name='python-lint',
-    version='0.0.1',
+    version='0.1.0',
     url='https://github.com/bugale/python-lint',
     license='MIT',
     author='Bugale',
