@@ -1,6 +1,6 @@
 """Setup script for python-lint"""
 
-from setuptools import find_packages, setup  # type: ignore
+from setuptools import setup  # type: ignore
 
 setup(
     name='python-lint',
@@ -10,7 +10,7 @@ setup(
     author='Bugale',
     author_email='bugale@bugalit.com',
     description='An abstraction for running linters on Python code and in repositories',
-    packages=find_packages(),
+    packages=['python_lint'],
     include_package_data=True,
     zip_safe=False,
     platforms='any',
