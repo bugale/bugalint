@@ -78,7 +78,8 @@ async def amain(argv: List[str]) -> int:
     logging.basicConfig(level=logging.DEBUG)
 
     linters = [
-        Linter(name='mypy', cmdline='"{exe}" -m mypy --show-error-codes --show-column-numbers --no-color-output --no-error-summary --install-types "{path}"',
+        Linter(name='mypy', cmdline='"{exe}" -m mypy --show-error-codes --show-column-numbers --no-color-output' +
+               ' --no-error-summary --install-types --non-interactive "{path}"',
                regex='(?P<file>.*\\.py):(?:(?P<line>\\d*):)?(?:(?P<col>\\d*):)? [^:]*: (?P<text>.*)'),
         Linter(name='pylint', cmdline='"{exe}" -m pylint {files}', regex='(?P<file>[^:]*):(?P<line>\\d*):(?P<col>\\d*): (?P<code>[^:]*): (?P<text>.*)'),
         Linter(name='flake8', cmdline='"{exe}" -m flake8 "{path}"', regex='(?P<file>[^:]*):(?P<line>\\d*):(?P<col>\\d*): (?P<code>[^ ]*) (?P<text>.*)'),
