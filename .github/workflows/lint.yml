@@ -17,6 +17,6 @@ jobs:
         pip install .
         rm -rf build
     - name: Lint
-      run: python-lint --lintly
+      run: bugalint --lintly
       env:
         LINTLY_API_KEY: ${{ secrets.GITHUB_TOKEN }}
