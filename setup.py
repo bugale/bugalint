@@ -1,23 +1,23 @@
-"""Setup script for python-lint"""
+"""Setup script for bugalint"""
 
 from setuptools import setup  # type: ignore
 
 setup(
-    name='python-lint',
-    version='0.1.0',
-    url='https://github.com/bugale/python-lint',
+    name='bugalint',
+    version='1.0.0',
+    url='https://github.com/bugale/bugalint',
     license='MIT',
     author='Bugale',
     author_email='bugale@bugalit.com',
-    description='An abstraction for running linters on Python code and in repositories',
-    packages=['python_lint'],
+    description='An abstraction for running linters on code',
+    packages=['bugalint'],
     include_package_data=True,
     zip_safe=False,
     platforms='any',
     install_requires=['lintly', 'flake8', 'mypy', 'pylint'],
     entry_points={
         'console_scripts': [
-            'python-lint = python_lint.cli:main',
+            'bugalint = bugalint.cli:main',
         ],
     },
     classifiers=[

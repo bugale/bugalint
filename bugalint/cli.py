@@ -1,4 +1,4 @@
-"""The CLI of python-lint"""
+"""The CLI of bugalint"""
 
 import sys
 import argparse
@@ -12,7 +12,7 @@ import logging
 import json
 from typing import Any, NoReturn, Optional, Dict, List
 
-logger = logging.getLogger('python-lint')
+logger = logging.getLogger('bugalint')
 
 
 @dataclasses.dataclass
