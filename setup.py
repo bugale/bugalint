@@ -2,19 +2,25 @@
 
 from setuptools import setup  # type: ignore
 
+with open('README.md', encoding='utf-8') as file:
+    readme = file.read()
+
 setup(
     name='bugalint',
-    version='3.0.3',
+    version='4.0.0',
     url='https://github.com/bugale/bugalint',
     license='MIT',
     author='Bugale',
     author_email='bugale@bugalit.com',
-    description='An abstraction for running linters on code',
+    description='An abstraction package for running linters on code, outputting the results in a unified format.',
+    long_description=readme,
+    long_description_content_type='text/markdown',
     packages=['bugalint'],
     package_data={'': ['*.ini']},
     zip_safe=False,
     platforms='any',
-    install_requires=['lintly', 'flake8', 'mypy', 'pylint'],
+    install_requires=[],
+    extras_require={'dev': ['pylint', 'flake8', 'mypy']},
     entry_points={
         'console_scripts': [
             'bugalint = bugalint.cli:main',
