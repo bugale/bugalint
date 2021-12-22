@@ -102,7 +102,7 @@ def initiate_lints(config: configparser.ConfigParser, linters: Dict[str, Linter]
 async def amain(argv: List[str]) -> int:
     """Run linting tools on the code"""
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', default='.bugalint.ini', help='The config file to use')
+    parser.add_argument('--config', default='setup.cfg', help='The config file to use')
     parser.add_argument('--verbose', action='store_true')
     parser.add_argument('--lintly', action='store_true')
     option = parser.parse_args(argv[1:])
