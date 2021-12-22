@@ -95,10 +95,12 @@ def initiate_lints(config: configparser.ConfigParser, linters: Dict[str, Linter]
     for lint_name, lint_config in sections_starting_with(config, 'bugalint.lints.'):
         for path in glob.iglob(lint_config['path'], recursive=True):
             logger.info('Linting %s', path)
-            cmdline_args = {'path': path, 'py_files': ' '.join((f'"{file}"' for file in glob.glob(os.path.join(path, '**', '*.py'), recursive=True)))}
+            cwd = lint_config.get('cwd', path)
+            py_files = [os.path.relpath(file, start=cwd) for file in glob.iglob(os.path.join(path, '**', '*.py'), recursive=True)]
+            cmdline_args = {'path': path, 'py_files': ' '.join((f'"{file}"' for file in py_files))}
             for linter_name, linter in linters.items():
                 if lint_config.get(linter_name):
-                    lints.append(linter.lint(cwd=lint_config.get('cwd', path), identifier=lint_name, cmdline_args=cmdline_args))
+                    lints.append(linter.lint(cwd=cwd, identifier=lint_name, cmdline_args=cmdline_args))
     return lints
 
 
