@@ -3,10 +3,8 @@
 import sys
 import argparse
 import os
-import subprocess
 import re
 import dataclasses
-import tempfile
 import asyncio
 import logging
 import json
@@ -58,31 +56,6 @@ class Linter:
         return issues
 
 
-def lintly(issues: List[Issue]) -> None:
-    """Run lintly on the issues"""
-    issues_json = [{
-        'path': issue.file,
-        'line': int(issue.line or '1'),
-        'column': int(issue.col or '0'),
-        'message-id': issue.code or '',
-        'message': issue.text or '',
-        'symbol': issue.source} for issue in issues if issue.file]
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as lintly_cmd:
-        lintly_cmd.write("""
-import os
-from lintly.cli import main
-if os.name == 'nt':
-    from lintly.parsers import BaseLintParser
-    orig = BaseLintParser._normalize_path
-    def _normalize_path(self, path):
-        return orig(self, path).replace('\\\\', '/')
-    BaseLintParser._normalize_path = _normalize_path
-main()
-""")
-    subprocess.run([sys.executable, lintly_cmd.name, '--log', '--no-request-changes', '--format=pylint-json'], check=False,
-                   input=json.dumps(issues_json), text=True)
-
-
 def sections_starting_with(config: configparser.ConfigParser, prefix: str) -> Iterator[Tuple[str, configparser.SectionProxy]]:
     """Returns all sections starting with the prefix"""
     for section_name in config.sections():
@@ -116,13 +89,13 @@ def initiate_lints(config: configparser.ConfigParser, linters: Dict[str, Linter]
 
 async def amain(argv: List[str]) -> int:
     """Run linting tools on the code"""
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--config', default='setup.cfg', help='The config file to use')
-    parser.add_argument('--verbose', action='store_true')
-    parser.add_argument('--lintly', action='store_true')
+    parser.add_argument('--verbose', action='store_true', help='Write debug log messages to stderr')
+    parser.add_argument('--output', choices=('textual', 'json'), default='textual', help='The output format')
     option = parser.parse_args(argv[1:])
 
-    logging.basicConfig(level=logging.DEBUG if option.verbose else logging.INFO)
+    logging.basicConfig(level=logging.DEBUG if option.verbose else logging.WARNING, stream=sys.stderr)
 
     config = configparser.ConfigParser()
     config.read([os.path.join(os.path.dirname(__file__), 'defaults.ini'), option.config])
@@ -131,12 +104,21 @@ async def amain(argv: List[str]) -> int:
 
     issues: List[Issue] = sum(list(await asyncio.gather(*lints)), start=[])
     for issue in issues:
-        logger.error(repr(issue))
+        logger.debug('%s', repr(issue))
     if not issues:
         logger.info('No issues found :)')
 
-    if option.lintly:
-        lintly(issues)
+    if option.output == 'json':
+        print(json.dumps([{
+            'path': issue.file,
+            'line': int(issue.line or '1'),
+            'column': int(issue.col or '0'),
+            'message-id': issue.code or '',
+            'message': issue.text or '',
+            'symbol': issue.source} for issue in issues if issue.file]))
+    else:
+        for issue in issues:
+            print(f'{issue.file}:{issue.line or "1"}:{issue.col or "0"}: {issue.source}:{issue.code or ""}: {issue.text or ""}')
 
     return len(issues)
 
