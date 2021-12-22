@@ -4,14 +4,14 @@ from setuptools import setup  # type: ignore
 
 setup(
     name='bugalint',
-    version='1.0.0',
+    version='2.0.0',
     url='https://github.com/bugale/bugalint',
     license='MIT',
     author='Bugale',
     author_email='bugale@bugalit.com',
     description='An abstraction for running linters on code',
     packages=['bugalint'],
-    include_package_data=True,
+    package_data={'': ['*.ini']},
     zip_safe=False,
     platforms='any',
     install_requires=['lintly', 'flake8', 'mypy', 'pylint'],
