@@ -35,20 +35,23 @@ class Linter:
     cmdline: str
     regex: str
 
-    async def lint(self, identifier: str, cmdline_args: Dict[str, Any]) -> List[Issue]:
+    async def lint(self, cwd: str, identifier: str, cmdline_args: Dict[str, Any]) -> List[Issue]:
         """Run the linter and return a list of issues"""
         cmdline = self.cmdline.format(**cmdline_args)
         logger.debug('%s %s cmdline: %s', self.name, identifier, cmdline)
-        proc = await asyncio.create_subprocess_shell(cmdline, shell=True, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        proc = await asyncio.create_subprocess_shell(cmdline, shell=True, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=cwd)
         stdout, stderr = await proc.communicate()
-        logger.debug('%s %s wrote:\nstdout: %s\nstderr: %s, return code: {proc.returncode}', self.name, identifier, stdout, stderr)
+        logger.debug('%s %s wrote:\nstdout: %s\nstderr: %s, return code: %d', self.name, identifier, stdout, stderr, proc.returncode)
         cregex = re.compile(self.regex)
         issues: List[Issue] = []
         for line in stdout.decode('utf-8').splitlines():
             result = cregex.fullmatch(line)
             if result:
                 groupdict = result.groupdict()
-                issues.append(Issue(file=groupdict.get('file', None), line=groupdict.get('line', None), col=groupdict.get('col', None),
+                file = groupdict.get('file', None)
+                if file:
+                    file = os.path.relpath(os.path.join(cwd, file))
+                issues.append(Issue(file=file, line=groupdict.get('line', None), col=groupdict.get('col', None),
                                     code=groupdict.get('code', None), text=groupdict.get('text', None), source=self.name))
         if not issues and proc.returncode != 0:
             issues.append(Issue(file=None, line=None, col=None, code=None, text='Non-zero return code', source=self.name))
@@ -95,7 +98,7 @@ def initiate_lints(config: configparser.ConfigParser, linters: Dict[str, Linter]
             cmdline_args = {'path': path, 'py_files': ' '.join((f'"{file}"' for file in glob.glob(os.path.join(path, '**', '*.py'), recursive=True)))}
             for linter_name, linter in linters.items():
                 if lint_config.get(linter_name):
-                    lints.append(linter.lint(identifier=lint_name, cmdline_args=cmdline_args))
+                    lints.append(linter.lint(cwd=lint_config.get('cwd', path), identifier=lint_name, cmdline_args=cmdline_args))
     return lints
 
 

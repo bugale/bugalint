@@ -4,7 +4,7 @@ from setuptools import setup  # type: ignore
 
 setup(
     name='bugalint',
-    version='3.0.0',
+    version='3.0.1',
     url='https://github.com/bugale/bugalint',
     license='MIT',
     author='Bugale',
