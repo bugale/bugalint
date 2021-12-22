@@ -68,7 +68,17 @@ def lintly(issues: List[Issue]) -> None:
         'message': issue.text or '',
         'symbol': issue.source} for issue in issues if issue.file]
     with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as lintly_cmd:
-        lintly_cmd.write('from lintly.cli import main\nmain()')
+        lintly_cmd.write("""
+import os
+from lintly.cli import main
+if os.name == 'nt':
+    from lintly.parsers import BaseLintParser
+    orig = BaseLintParser._normalize_path
+    def _normalize_path(self, path):
+        return orig(self, path).replace('\\\\', '/')
+    BaseLintParser._normalize_path = _normalize_path
+main()
+""")
     subprocess.run([sys.executable, lintly_cmd.name, '--log', '--no-request-changes', '--format=pylint-json'], check=False,
                    input=json.dumps(issues_json), text=True)
 
