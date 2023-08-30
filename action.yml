@@ -1,0 +1,32 @@
+name: 'bugalint'
+description: 'Convert various linter outputs to SARIF'
+inputs:
+  inputFile:
+    description: 'Path to the file with the linter output'
+    required: true
+  outputFile:
+    description: 'Path to the SARIF file this action will generate'
+    required: false
+    default: 'sarif.json'
+  toolName:
+    description: 'Name of the tool to be written in the SARIF'
+    required: true
+  inputFormat:
+    description: 'Name of a known format of the input file'
+    required: false
+    default: ''
+  inputRegex:
+    description: 'Regular expression to parse the input file'
+    required: false
+    default: ''
+  levelMap:
+    description: 'Mapping from levels in input to SARIF levels (note, warning, error)'
+    required: false
+    default: ''
+  verbose:
+    description: 'Print raw input and output'
+    required: false
+    default: 'false'
+runs:
+  using: 'node16'
+  main: 'dist/index.js'

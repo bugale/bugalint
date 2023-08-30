@@ -1,0 +1,4 @@
+test.py-3-1-4-10 info:N123:some-note Message 1
+test.py-3-1 warn:E124:some-warning Message 2
+test.py err:E125:some-error Message 3
+Finished running

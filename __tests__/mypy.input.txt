@@ -1,0 +1,7 @@
+
+test.py:3:1:4:10: error: Function is missing a return type annotation  [no-untyped-def]
+test.py:3:1:4:10: note: Use "-> None" if function does not return a value
+test.py:5:5:5:8: error: Value of type "Optional[str]" is not indexable  [index]
+test.py:6:5: error: Value of type "Optional[str]" is not indexable  [index]
+test.py:7: error: Value of type "Optional[str]" is not indexable  [index]
+Found 2 errors in 1 file (checked 1 source file)
