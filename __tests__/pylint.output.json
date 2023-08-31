@@ -1,0 +1,75 @@
+{
+  "version": "2.1.0",
+  "$schema": "http://json.schemastore.org/sarif-2.1.0-rtm.6",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "test",
+          "rules": [
+            { "id": "C0304", "name": "missing-final-newline" },
+            { "id": "C0116", "name": "missing-function-docstring" },
+            { "id": "W0611", "name": "unused-import" }
+          ]
+        }
+      },
+      "results": [
+        {
+          "locations": [
+            {
+              "physicalLocation": { "artifactLocation": { "uri": "test.py" }, "region": { "startColumn": 1, "startLine": 4 } }
+            }
+          ],
+          "level": "note",
+          "message": { "text": "Final newline missing" },
+          "ruleId": "C0304",
+          "ruleIndex": 0
+        },
+        {
+          "locations": [
+            {
+              "physicalLocation": { "artifactLocation": { "uri": "test.py" }, "region": { "endColumn": 6, "endLine": 3, "startColumn": 1, "startLine": 3 } }
+            }
+          ],
+          "level": "note",
+          "message": { "text": "Missing function or method docstring" },
+          "ruleId": "C0116",
+          "ruleIndex": 1
+        },
+        {
+          "locations": [
+            {
+              "physicalLocation": { "artifactLocation": { "uri": "test.py" }, "region": { "endColumn": 6, "endLine": 3, "startColumn": 1, "startLine": 3 } }
+            }
+          ],
+          "level": "note",
+          "message": { "text": "Missing function or method docstring" },
+          "ruleId": "C0116",
+          "ruleIndex": 1
+        },
+        {
+          "locations": [
+            {
+              "physicalLocation": { "artifactLocation": { "uri": "test.py" }, "region": { "endColumn": 11, "endLine": 1, "startColumn": 1, "startLine": 1 } }
+            }
+          ],
+          "level": "warning",
+          "message": { "text": "Unused import sys" },
+          "ruleId": "W0611",
+          "ruleIndex": 2
+        },
+        {
+          "locations": [
+            {
+              "physicalLocation": { "artifactLocation": { "uri": "test.py" }, "region": { "endColumn": 11, "endLine": 1, "startColumn": 1, "startLine": 1 } }
+            }
+          ],
+          "level": "error",
+          "message": { "text": "Unused import sys" },
+          "ruleId": "W0611",
+          "ruleIndex": 2
+        }
+      ]
+    }
+  ]
+}

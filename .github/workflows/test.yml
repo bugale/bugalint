@@ -1,0 +1,83 @@
+name: Test
+
+on: [pull_request]
+
+jobs:
+  check-dist:
+    name: Check dist/
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Install Dependencies
+        run: npm clean-install
+      - name: Build dist/ Directory
+        run: npm run package
+      - name: Compare Expected and Actual Directories
+        id: diff
+        run: |
+          if [ "$(git diff --ignore-space-at-eol --text dist/ | wc -l)" -gt "0" ]; then
+            echo "Detected uncommitted changes after build. See status below:"
+            git diff --ignore-space-at-eol --text dist/
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v3
+        if: ${{ failure() && steps.diff.conclusion == 'failure' }}
+        with:
+          name: dist
+          path: dist/
+  jest:
+    name: Jest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Install Package
+        run: npm clean-install
+      - name: Run Jest
+        run: npm run test
+  gha:
+    name: GitHub Action
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        run:
+          [
+            { linter: 'flake8', format: 'flake8', regex: '', levelMap: '' },
+            { linter: 'mypy', format: 'mypy', regex: '', levelMap: '' },
+            { linter: 'pylint', format: 'pylint', regex: '', levelMap: '' },
+            { linter: 'mdl', format: 'mdl', regex: '', levelMap: '' },
+            {
+              linter: 'custom',
+              format: '',
+              regex: '^(?<path>[^-\n]+)(?:-(?<line>\d+))?(?:-(?<col>\d+))?(?:-(?<eline>\d+))?(?:-(?<ecol>\d+))? (?<level>[^:\s]+):(?<id>[^:\s]+):(?<sym>[^:\s]+) (?<msg>.+)$',
+              levelMap: '{ "err": "error", "warn": "warning", "info": "note" }'
+            }
+          ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Install Dependencies
+        run: npm install -g json-diff
+      - name: Run Action
+        uses: ./
+        with:
+          inputFile: '__tests__/${{ matrix.run.linter }}.input.txt'
+          toolName: 'test'
+          inputFormat: ${{ matrix.run.format }}
+          inputRegex: ${{ matrix.run.regex }}
+          levelMap: ${{ matrix.run.levelMap }}
+          verbose: 'true'
+      - name: Create Diff
+        run: json-diff "__tests__/${{ matrix.run.linter }}.output.json" "sarif.json" | tee diff.txt
+      - name: Test Output
+        run: |
+          if [ -s diff.txt ];
+          then
+            echo "Failed with diff:"
+            cat diff.txt
+            exit 1
+          else
+            echo "Success"
+          fi

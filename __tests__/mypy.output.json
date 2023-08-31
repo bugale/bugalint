@@ -1,0 +1,60 @@
+{
+  "version": "2.1.0",
+  "$schema": "http://json.schemastore.org/sarif-2.1.0-rtm.6",
+  "runs": [
+    {
+      "tool": { "driver": { "name": "test", "rules": [] } },
+      "results": [
+        {
+          "locations": [
+            {
+              "physicalLocation": { "artifactLocation": { "uri": "test.py" }, "region": { "endColumn": 10, "endLine": 4, "startColumn": 1, "startLine": 3 } }
+            }
+          ],
+          "level": "error",
+          "message": { "text": "Function is missing a return type annotation" },
+          "ruleId": "no-untyped-def"
+        },
+        {
+          "locations": [
+            {
+              "physicalLocation": { "artifactLocation": { "uri": "test.py" }, "region": { "endColumn": 10, "endLine": 4, "startColumn": 1, "startLine": 3 } }
+            }
+          ],
+          "level": "note",
+          "message": { "text": "Use \"-> None\" if function does not return a value" }
+        },
+        {
+          "locations": [
+            {
+              "physicalLocation": { "artifactLocation": { "uri": "test.py" }, "region": { "endColumn": 8, "endLine": 5, "startColumn": 5, "startLine": 5 } }
+            }
+          ],
+          "level": "error",
+          "message": { "text": "Value of type \"Optional[str]\" is not indexable" },
+          "ruleId": "index"
+        },
+        {
+          "locations": [
+            {
+              "physicalLocation": { "artifactLocation": { "uri": "test.py" }, "region": { "startColumn": 5, "startLine": 6 } }
+            }
+          ],
+          "level": "error",
+          "message": { "text": "Value of type \"Optional[str]\" is not indexable" },
+          "ruleId": "index"
+        },
+        {
+          "locations": [
+            {
+              "physicalLocation": { "artifactLocation": { "uri": "test.py" }, "region": { "startLine": 7 } }
+            }
+          ],
+          "level": "error",
+          "message": { "text": "Value of type \"Optional[str]\" is not indexable" },
+          "ruleId": "index"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+test.md:5:1 MD029/ol-prefix Ordered list item prefix [Expected: 3; Actual: 1; Style: 1/2/3]
+test.md:5:4 MD047/single-trailing-newline Files should end with a single newline character
