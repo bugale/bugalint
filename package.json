@@ -29,7 +29,7 @@
     "ts-jest": "^29.1.1",
     "@types/jest": "^29.5.4",
     "@microsoft/jest-sarif": "^1.0.0-beta.0",
-    "prettier": "^3.0.2",
+    "prettier": "^3.0.3",
     "prettier-eslint": "^15.0.1",
     "eslint": "^8.48.0",
     "eslint-plugin-github": "^4.9.2",
