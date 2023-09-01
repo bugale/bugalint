@@ -44,15 +44,18 @@ jobs:
       matrix:
         run:
           [
-            { linter: 'flake8', format: 'flake8', regex: '', levelMap: '' },
-            { linter: 'mypy', format: 'mypy', regex: '', levelMap: '' },
-            { linter: 'pylint', format: 'pylint', regex: '', levelMap: '' },
-            { linter: 'mdl', format: 'mdl', regex: '', levelMap: '' },
+            { linter: 'flake8', format: 'flake8', regex: '', levelMap: '', analysisPath: '.' },
+            { linter: 'mypy', format: 'mypy', regex: '', levelMap: '', analysisPath: '.' },
+            { linter: 'pylint', format: 'pylint', regex: '', levelMap: '', analysisPath: '.' },
+            { linter: 'mdl', format: 'mdl', regex: '', levelMap: '', analysisPath: '.' },
+            { linter: 'sarif', format: 'sarif', regex: '', levelMap: '', analysisPath: '.' },
+            { linter: 'flake8subpath', format: 'flake8', regex: '', levelMap: '', analysisPath: 'A\B' },
             {
               linter: 'custom',
               format: '',
               regex: '^(?<path>[^-\n]+)(?:-(?<line>\d+))?(?:-(?<col>\d+))?(?:-(?<eline>\d+))?(?:-(?<ecol>\d+))? (?<level>[^:\s]+):(?<id>[^:\s]+):(?<sym>[^:\s]+) (?<msg>.+)$',
-              levelMap: '{ "err": "error", "warn": "warning", "info": "note" }'
+              levelMap: '{ "err": "error", "warn": "warning", "info": "note" }',
+              analysisPath: '.'
             }
           ]
     steps:
@@ -68,7 +71,7 @@ jobs:
           inputFormat: ${{ matrix.run.format }}
           inputRegex: ${{ matrix.run.regex }}
           levelMap: ${{ matrix.run.levelMap }}
-          verbose: 'true'
+          analysisPath: ${{ matrix.run.analysisPath }}
       - name: Create Diff
         run: json-diff "__tests__/${{ matrix.run.linter }}.output.json" "sarif.json" | tee diff.txt
       - name: Test Output

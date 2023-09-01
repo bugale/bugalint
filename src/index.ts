@@ -1,28 +1,41 @@
 import { readFileSync, writeFileSync } from 'fs'
-import { getInput, getBooleanInput, info, setFailed } from '@actions/core'
-import { convert, getKnownParser, getRegexParser, type Parser } from '../src/bugalint'
+import { context } from '@actions/github'
+import { getInput, getBooleanInput, debug, setFailed } from '@actions/core'
+import { generateSarif, getKnownParser, getRegexParser, addComments, createSummary, type Parser } from '../src/bugalint'
 
-export function run(): void {
+export async function run(): Promise<void> {
   try {
     const inputFile: string = getInput('inputFile')
+    const sarif: boolean = getBooleanInput('sarif')
+    const comment: boolean = getBooleanInput('comment')
+    const summary: boolean = getBooleanInput('summary')
     const outputFile: string = getInput('outputFile')
     const toolName: string = getInput('toolName')
     const inputFormat: string = getInput('inputFormat')
     const inputRegex: string = getInput('inputRegex')
     const levelMap: string = getInput('levelMap')
-    const verbose: boolean = getBooleanInput('verbose')
+    const analysisPath: string = getInput('analysisPath')
+    const githubToken: string = getInput('githubToken')
 
     const parser: Parser =
       inputFormat === '' ? getRegexParser(new RegExp(inputRegex, 'gm'), levelMap === '' ? undefined : JSON.parse(levelMap)) : getKnownParser(inputFormat)
     const input = readFileSync(inputFile, 'utf-8')
-    if (verbose) {
-      info(`input: ${input}`)
+    debug(`input: ${input}`)
+    if (sarif) {
+      const output = generateSarif(parser(input), toolName, analysisPath)
+      debug(`SARIF output: ${JSON.stringify(output, null, 2)}`)
+      writeFileSync(outputFile, JSON.stringify(output))
     }
-    const output = convert(parser, input, toolName)
-    if (verbose) {
-      info(`output: ${JSON.stringify(output, null, 2)}`)
+    if (comment) {
+      const prNumber = context.payload.pull_request?.number
+      if (prNumber == null) {
+        throw new Error('No pull request number found.')
+      }
+      await addComments(parser(input), githubToken, toolName, context.repo.owner, context.repo.repo, prNumber, analysisPath)
     }
-    writeFileSync(outputFile, JSON.stringify(output))
+    if (summary) {
+      await createSummary(parser(input), toolName, analysisPath)
+    }
   } catch (error) {
     if (error instanceof Error) {
       setFailed(error.message)
@@ -30,4 +43,4 @@ export function run(): void {
   }
 }
 
-run()
+void run().finally((): void => {})

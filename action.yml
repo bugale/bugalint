@@ -1,9 +1,21 @@
 name: 'bugalint'
-description: 'Convert various linter outputs to SARIF'
+description: 'Convert various linter outputs to standard formats'
 inputs:
   inputFile:
     description: 'Path to the file with the linter output'
     required: true
+  sarif:
+    description: 'Should the action create a SARIF file'
+    required: false
+    default: 'true'
+  comment:
+    description: 'Should the action comment on the PR'
+    required: false
+    default: 'false'
+  summary:
+    description: 'Should the action create a markdown summary'
+    required: false
+    default: 'true'
   outputFile:
     description: 'Path to the SARIF file this action will generate'
     required: false
@@ -23,10 +35,14 @@ inputs:
     description: 'Mapping from levels in input to SARIF levels (note, warning, error)'
     required: false
     default: ''
-  verbose:
-    description: 'Print raw input and output'
+  analysisPath:
+    description: "The path at which the analysis took place relative to the repository's root. Used to relativize any paths to the repository root path."
     required: false
-    default: 'false'
+    default: '.'
+  githubToken:
+    description: 'Github token of the repository (automatically created by Github)'
+    default: ${{ github.token }}
+    required: false
 runs:
   using: 'node16'
   main: 'dist/index.js'
