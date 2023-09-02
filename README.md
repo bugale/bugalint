@@ -1,9 +1,11 @@
 # Bugalint
 
-This GitHub Action converts various linter outputs to SARIF, and supports custom linter output formats using regular expressions.
+This GitHub Action converts various linter outputs to standard formats (including SARIF), and supports custom linter output formats using regular expressions.
 This action can be used in conjunction with
 [GitHub's Code Scanning feature](https://docs.github.com/en/github/finding-security-vulnerabilities-and-errors-in-your-code/about-code-scanning) to
 [report linter issues as code scanning alerts](#basic-example).
+This action can also auto-comment on the PR in the relevant lines, which is an alternative to uploading a SARIF (which is only available with GitHub Advanced Security).
+This action can also generate a markdown report for the job.
 
 ## Usage
 
@@ -17,7 +19,7 @@ steps:
   - uses: actions/setup-python@v4
   - run: pip install pylint
   - run: pylint --output-format=json my_python_file.py > lint.txt
-  - uses: bugale/bugalint@v1
+  - uses: bugale/bugalint@v2
     if: always()
     with:
       inputFile: lint.txt
@@ -33,10 +35,17 @@ steps:
 
 - `inputFile`: _(required)_ The path to the input file, i.e. the file containing the output of the linter.
 
+- `sarif`: True by default - generates a SARIF file as an output. If set to false, the action will not generate a SARIF file.
+
+- `comment`: Set to true to comment on the PR with the issues. If set to false or ommitted, the action will not comment on the PR.
+
+- `summary`: True by default - generates a markdown summary for the job. If set to false, the action will not generate a markdown summary.
+
 - `outputFile`: The path to the output SARIF file this action should generate. If not specified, the action will generate a `sarif.json` file in the root of
   the repository.
 
-- `toolName`: _(required)_ The `tool name` that will be written in the SARIF output. This is required per SARIF's schema.
+- `toolName`: _(required)_ The `tool name` that will be written in the SARIF output. This is used by both code scanning and auto-pr-commenting to resolve fixed
+  issues.
 
 - `inputFormat`: The name of a linter output format that this action [natively supports](#natively-supported-linter-output-formats). If not specified, the
   action will expect `inputRegex` input to be specified.
@@ -48,7 +57,11 @@ steps:
 - `levelMap`: An optional JSON object mapping between the linter's levels and the SARIF levels (`note`/`warning`/`error`). Ignored unless `inputRegex` is
   specified.
 
-- `verbose`: Causes the action to print it's input and output. Useful for debugging.
+- `analysisPath`: The path to the directory from which the analysis was run, relative to the repository's root. By default, the action will use the repository's
+  root. This is required only when the linter's output contains paths that are relative but not to the repository's root, for which this action will
+  re-relativize them.
+
+- `githubToken`: Relevant only for "comment" mode. The GitHub token to use to post the comment. If not specified, the action will use the action's token.
 
 #### Natively Supported Linter Output Formats
 
@@ -62,6 +75,9 @@ This action supports a bunch of linter output formats, for which no `inputRegex`
   `--show-error-end` in mypy's command line to have the richest SARIF.
 
 - `markdownlint`: The format of [markdownlint](https://github.com/markdownlint/markdownlint) linter's default output.
+
+- `SARIF`: A [standard format for static analysis](https://sarifweb.azurewebsites.net/). This is useful if you already have a SARIF file and want to create a summary
+  for it, or create comments on the PR.
 
 #### Input Regex Named Groups
 
@@ -107,7 +123,7 @@ steps:
   - uses: actions/setup-python@v4
   - run: pip install mylinter
   - run: mylinter test.py > lint.txt
-  - uses: bugale/bugalint@v1
+  - uses: bugale/bugalint@v2
     if: always()
     with:
       inputFile: lint.txt
