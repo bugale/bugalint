@@ -1,3 +1,4 @@
+---
 name: Checks
 on:
   - pull_request
@@ -24,6 +25,7 @@ jobs:
           fetch-depth: ${{ steps.get-base.outputs.required }}
           ref: ${{ github.event.pull_request.head.sha }}
       - name: Check Commits
+        # yamllint disable-line rule:line-length
         run: commitlint --from ${{ github.event.pull_request.head.sha }}~${{ steps.get-base.outputs.commit-count }} --to ${{ github.event.pull_request.head.sha }}
   required:
     runs-on: ubuntu-latest
