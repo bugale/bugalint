@@ -1,0 +1,32 @@
+name: Checks
+on:
+  pull_request:
+    paths:
+      - '**.md'
+      - '**mdl*'
+      - '.github/workflows/check-docs.yml'
+jobs:
+  markdownlint:
+    name: markdownlint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Lint
+        uses: avto-dev/markdown-lint@v1
+        with:
+          args: '**/*.md'
+          output: 'lint.txt'
+          config: '.mdl.yml'
+      - name: Convert
+        uses: ./
+        if: always()
+        with:
+          inputFile: 'lint.txt'
+          toolName: 'mdl'
+          inputFormat: 'mdl'
+      - name: Upload results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: sarif.json
