@@ -1,0 +1,2 @@
+.\test.yml:5:1: [warning] missing document start "---" (document-start)
+.\test.yml:5:4: [error] wrong new line character: expected \n (new-lines)

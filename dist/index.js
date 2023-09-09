@@ -9717,8 +9717,9 @@ const knownParsers = {
     pylint: parsePylint,
     sarif: parseSarif,
     mypy: (input) => parseRegex(input, /^(?<path>[^:\n]+):(?:(?<line>\d+):)?(?:(?<col>\d+):)?(?:(?<eline>\d+):)?(?:(?<ecol>\d+):)? (?<level>[^:\s]+): (?<msg>.+?)\s*(?:\[(?<id>\S+)\])?$/gm),
-    flake8: (input) => parseRegex(input, /^(?<path>[^:\n]+):(?<line>\d+):(?<col>\d+): (?<id>\w\d+) (?<msg>.+)$/gm),
-    mdl: (input) => parseRegex(input, /^(?<path>[^:\n]+)(?::(?<line>\d+))?(?::(?<col>\d+))? (?<id>[^//n]+)\/(?<sym>[^\s]+) (?<msg>.+)$/gm)
+    flake8: (input) => parseRegex(input, /^(?<path>[^:\n]+):(?<line>\d+):(?<col>\d+): (?<id>\w\d+) (?<msg>[^\n]+)$/gm),
+    mdl: (input) => parseRegex(input, /^(?<path>[^:\n]+)(?::(?<line>\d+))?(?::(?<col>\d+))? (?<id>[^/\n]+)\/(?<sym>[^\s]+) (?<msg>[^\n]+)$/gm),
+    yamllint: (input) => parseRegex(input, /^(?<path>[^:\n]+):(?<line>\d+):(?<col>\d+): \[(?<level>[^\n\]]+)\] (?<msg>[^\n]+) \((?<id>[^\n)]+)\)$/gm)
 };
 function normalizePath(givenPath, analysisPath) {
     return path_1.default.relative('.', path_1.default.join(analysisPath.replace(/\\/g, '/'), givenPath.replace(/\\/g, '/'))).replace(/\\/g, '/');
