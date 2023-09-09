@@ -1,0 +1,27 @@
+---
+name: Checks
+on:
+  pull_request:
+    paths:
+      - '**.yml'
+jobs:
+  yamllint:
+    name: yamllint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: yamllint
+        run: yamllint --strict -f parsable . > lint.txt
+      - name: Convert
+        uses: ./
+        if: always()
+        with:
+          inputFile: 'lint.txt'
+          toolName: 'yamllint'
+          inputFormat: 'yamllint'
+      - name: Upload results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: sarif.json

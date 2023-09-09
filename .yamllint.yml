@@ -1,0 +1,10 @@
+---
+extends: default
+ignore:
+  - 'node_modules/**'
+rules:
+  new-lines: disable
+  truthy:
+    check-keys: false
+  line-length:
+    max: 160
