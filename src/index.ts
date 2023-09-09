@@ -19,7 +19,7 @@ export async function run(): Promise<void> {
 
     const parser: Parser =
       inputFormat === '' ? getRegexParser(new RegExp(inputRegex, 'gm'), levelMap === '' ? undefined : JSON.parse(levelMap)) : getKnownParser(inputFormat)
-    const input = readFileSync(inputFile, 'utf-8')
+    const input = readFileSync(inputFile, 'utf-8').replace(/\r/g, '')
     debug(`input: ${input}`)
     if (sarif) {
       const output = generateSarif(parser(input), toolName, analysisPath)
