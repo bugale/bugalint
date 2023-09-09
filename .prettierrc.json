@@ -3,5 +3,13 @@
   "singleQuote": true,
   "trailingComma": "none",
   "endOfLine": "auto",
-  "semi": false
+  "semi": false,
+  "overrides": [
+    {
+      "files": "**.yml",
+      "options": {
+        "bracketSpacing": false
+      }
+    }
+  ]
 }

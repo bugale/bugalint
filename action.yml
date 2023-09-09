@@ -1,3 +1,4 @@
+---
 name: 'bugalint'
 description: 'Convert various linter outputs to standard formats'
 inputs:
