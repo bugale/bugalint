@@ -150,7 +150,7 @@ jobs:
           fi
   required:
     runs-on: ubuntu-latest
-    name: Required
+    name: Required Checks
     steps:
       - uses: bugale/bugroup-checks@v1
         with:
@@ -158,4 +158,4 @@ jobs:
             GitHub Action.*
             Check.*
             .*[lL]int.*
-          self: Required
+          self: Required Checks
