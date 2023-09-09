@@ -10,7 +10,9 @@ updates:
     groups:
       action-dependencies:
         patterns:
-          - "*"
+          - '*'
+    commit-message:
+      prefix: 'build'
   - package-ecosystem: npm
     directory: /
     labels:
@@ -21,4 +23,6 @@ updates:
     groups:
       npm-dependencies:
         patterns:
-          - "*"
+          - '*'
+    commit-message:
+      prefix: 'build'

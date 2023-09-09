@@ -1,22 +1,9 @@
 {
-  "name": "bugalint",
-  "version": "1.0.0",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/bugale/bugalint.git"
-  },
   "scripts": {
     "test": "jest",
     "package": "ncc build src/index.ts",
     "lint": "npx eslint ."
   },
-  "keywords": [],
-  "author": "Bugale Bugalit",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/bugale/bugalint/issues"
-  },
-  "homepage": "https://github.com/bugale/bugalint#readme",
   "dependencies": {
     "@actions/core": "^1.6.0",
     "@actions/github": "^5.1.1",

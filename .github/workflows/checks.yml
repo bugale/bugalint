@@ -1,8 +1,72 @@
-name: Test
-
-on: [pull_request]
-
+name: Checks
+on:
+  - pull_request
 jobs:
+  eslint:
+    name: ESLint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Install Dependencies
+        run: npm clean-install; npm install @microsoft/eslint-formatter-sarif
+      - name: Run ESLint
+        run: npx eslint . --format @microsoft/eslint-formatter-sarif --output-file lint.sarif
+      - name: Print Output
+        if: always()
+        run: cat lint.sarif
+      - name: Upload analysis results to GitHub
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: lint.sarif
+  markdownlint:
+    name: markdownlint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Lint
+        uses: avto-dev/markdown-lint@v1
+        with:
+          args: '**/*.md'
+          output: 'lint.txt'
+          config: '.mdl.yml'
+      - name: Convert
+        uses: ./
+        if: always()
+        with:
+          inputFile: 'lint.txt'
+          toolName: 'mdl'
+          inputFormat: 'mdl'
+      - name: Upload results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: sarif.json
+  check-commits:
+    name: Check Commits
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Dependencies
+        run: npm install -g @commitlint/cli @commitlint/config-conventional conventional-changelog-conventionalcommits
+      - name: Get Base
+        id: get-base
+        run: |-
+          count=$(gh api "/repos/${{ github.repository }}/pulls/${{ github.event.number }}/commits" --jq "length")
+          req=$(($count + 1))
+          echo "count: $count, req: $req"
+          echo "commit-count=$count" >> $GITHUB_OUTPUT
+          echo "required=$req" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: ${{ steps.get-base.outputs.required }}
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Check Commits
+        run: commitlint --from ${{ github.event.pull_request.head.sha }}~${{ steps.get-base.outputs.commit-count }} --to ${{ github.event.pull_request.head.sha }}
   check-dist:
     name: Check dist/
     runs-on: ubuntu-latest
@@ -37,7 +101,6 @@ jobs:
       - name: Run Jest
         run: npm run test
   gha:
-    name: GitHub Action
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -58,6 +121,7 @@ jobs:
               analysisPath: '.'
             }
           ]
+    name: GitHub Action (${{ matrix.run.linter }})
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -84,3 +148,14 @@ jobs:
           else
             echo "Success"
           fi
+  required:
+    runs-on: ubuntu-latest
+    name: Required
+    steps:
+      - uses: bugale/bugroup-checks@v1
+        with:
+          checks: |-
+            GitHub Action.*
+            Check.*
+            .*[lL]int.*
+          self: Required
