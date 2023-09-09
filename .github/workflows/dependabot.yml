@@ -4,6 +4,7 @@ on:
 permissions: write-all
 jobs:
   auto-merge:
+    name: Auto-merge
     runs-on: ubuntu-latest
     if: ${{ github.actor == 'dependabot[bot]' }}
     steps:
