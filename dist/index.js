@@ -10078,7 +10078,7 @@ async function run() {
         const analysisPath = (0, core_1.getInput)('analysisPath');
         const githubToken = (0, core_1.getInput)('githubToken');
         const parser = inputFormat === '' ? (0, bugalint_1.getRegexParser)(new RegExp(inputRegex, 'gm'), levelMap === '' ? undefined : JSON.parse(levelMap)) : (0, bugalint_1.getKnownParser)(inputFormat);
-        const input = (0, fs_1.readFileSync)(inputFile, 'utf-8');
+        const input = (0, fs_1.readFileSync)(inputFile, 'utf-8').replace(/\r/g, '');
         (0, core_1.debug)(`input: ${input}`);
         if (sarif) {
             const output = (0, bugalint_1.generateSarif)(parser(input), toolName, analysisPath);
