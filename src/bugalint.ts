@@ -89,8 +89,9 @@ const knownParsers: Record<string, Parser> = {
       input,
       /^(?<path>[^:\n]+):(?:(?<line>\d+):)?(?:(?<col>\d+):)?(?:(?<eline>\d+):)?(?:(?<ecol>\d+):)? (?<level>[^:\s]+): (?<msg>.+?)\s*(?:\[(?<id>\S+)\])?$/gm
     ),
-  flake8: (input: string) => parseRegex(input, /^(?<path>[^:\n]+):(?<line>\d+):(?<col>\d+): (?<id>\w\d+) (?<msg>.+)$/gm),
-  mdl: (input: string) => parseRegex(input, /^(?<path>[^:\n]+)(?::(?<line>\d+))?(?::(?<col>\d+))? (?<id>[^//n]+)\/(?<sym>[^\s]+) (?<msg>.+)$/gm)
+  flake8: (input: string) => parseRegex(input, /^(?<path>[^:\n]+):(?<line>\d+):(?<col>\d+): (?<id>\w\d+) (?<msg>[^\n]+)$/gm),
+  mdl: (input: string) => parseRegex(input, /^(?<path>[^:\n]+)(?::(?<line>\d+))?(?::(?<col>\d+))? (?<id>[^/\n]+)\/(?<sym>[^\s]+) (?<msg>[^\n]+)$/gm),
+  yamllint: (input: string) => parseRegex(input, /^(?<path>[^:\n]+):(?<line>\d+):(?<col>\d+): \[(?<level>[^\n\]]+)\] (?<msg>[^\n]+) \((?<id>[^\n)]+)\)$/gm)
 }
 
 function normalizePath(givenPath: string, analysisPath: string): string {

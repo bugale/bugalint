@@ -76,6 +76,9 @@ This action supports a bunch of linter output formats, for which no `inputRegex`
 
 - `markdownlint`: The format of [markdownlint](https://github.com/markdownlint/markdownlint) linter's default output.
 
+- `yamllint`: The format of [yamllint](https://yamllint.readthedocs.io/en/stable/) linter's parsable output (requires using `-f parsable` in yamllint's command
+  line).
+
 - `SARIF`: A [standard format for static analysis](https://sarifweb.azurewebsites.net/). This is useful if you already have a SARIF file and want to create a summary
   for it, or create comments on the PR.
 

@@ -8,6 +8,7 @@ describe('fullConversion', () => {
     ['pylint', getKnownParser('pylint'), '.'],
     ['flake8', getKnownParser('flake8'), '.'],
     ['mdl', getKnownParser('mdl'), '.'],
+    ['yamllint', getKnownParser('yamllint'), '.'],
     ['sarif', getKnownParser('sarif'), '.'],
     ['flake8subpath', getKnownParser('flake8'), 'A\\B'],
     [
@@ -19,8 +20,8 @@ describe('fullConversion', () => {
       '.'
     ]
   ])('%s', (name: string, parser: Parser, analysisPath: string) => {
-    const input = readFileSync(`__tests__/${name}.input.txt`, 'utf-8')
-    const output = readFileSync(`__tests__/${name}.output.json`, 'utf-8')
+    const input = readFileSync(`__tests__/${name}.input.txt`, 'utf-8').replace(/\r/g, '')
+    const output = readFileSync(`__tests__/${name}.output.json`, 'utf-8').replace(/\r/g, '')
     const result = generateSarif(parser(input), 'test', analysisPath)
     expect(result).toBeValidSarifLog()
     expect(JSON.parse(JSON.stringify(result))).toStrictEqual(JSON.parse(output))
