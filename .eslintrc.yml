@@ -4,7 +4,7 @@ env:
   es6: true
   jest: true
 extends:
-  - standard-with-typescript
+  - love
   - plugin:jest/recommended
   - plugin:github/recommended
 overrides:

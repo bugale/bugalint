@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync } from 'fs'
+import type { Result } from 'sarif'
 import { context } from '@actions/github'
 import { getInput, getBooleanInput, debug, setFailed } from '@actions/core'
 import { generateSarif, getKnownParser, getRegexParser, addComments, createSummary, type Parser } from '../src/bugalint'
@@ -18,7 +19,9 @@ export async function run(): Promise<void> {
     const githubToken: string = getInput('githubToken')
 
     const parser: Parser =
-      inputFormat === '' ? getRegexParser(new RegExp(inputRegex, 'gm'), levelMap === '' ? undefined : JSON.parse(levelMap)) : getKnownParser(inputFormat)
+      inputFormat === ''
+        ? getRegexParser(new RegExp(inputRegex, 'gm'), levelMap === '' ? undefined : (JSON.parse(levelMap) as Record<string, Result.level>))
+        : getKnownParser(inputFormat)
     const input = readFileSync(inputFile, 'utf-8').replace(/\r/g, '')
     debug(`input: ${input}`)
     if (sarif) {
