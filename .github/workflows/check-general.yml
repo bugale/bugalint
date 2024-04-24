@@ -31,7 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Required Checks
     steps:
-      - uses: bugale/bugroup-checks@v1
+      - uses: bugale/bugroup-checks@v2
         with:
           checks: |-
             GitHub Action.*
