@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
 env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 jobs:
@@ -13,7 +16,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
       - name: Setup Dependencies
         run: npm install -g semantic-release semantic-release-major-tag
       - name: Release
+        if: github.event_name == 'push'
         run: npx semantic-release
+      - name: Release Dry Run
+        if: github.event_name == 'pull_request'
+        run: npx semantic-release --dry-run

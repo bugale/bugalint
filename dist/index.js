@@ -1902,7 +1902,7 @@ class HttpClient {
         }
         const usingSsl = parsedUrl.protocol === 'https:';
         proxyAgent = new undici_1.ProxyAgent(Object.assign({ uri: proxyUrl.href, pipelining: !this._keepAlive ? 0 : 1 }, ((proxyUrl.username || proxyUrl.password) && {
-            token: `${proxyUrl.username}:${proxyUrl.password}`
+            token: `Basic ${Buffer.from(`${proxyUrl.username}:${proxyUrl.password}`).toString('base64')}`
         })));
         this._proxyAgentDispatcher = proxyAgent;
         if (usingSsl && this._ignoreSslError) {
@@ -2016,11 +2016,11 @@ function getProxyUrl(reqUrl) {
     })();
     if (proxyVar) {
         try {
-            return new URL(proxyVar);
+            return new DecodedURL(proxyVar);
         }
         catch (_a) {
             if (!proxyVar.startsWith('http://') && !proxyVar.startsWith('https://'))
-                return new URL(`http://${proxyVar}`);
+                return new DecodedURL(`http://${proxyVar}`);
         }
     }
     else {
@@ -2078,6 +2078,19 @@ function isLoopbackAddress(host) {
         hostLower.startsWith('127.') ||
         hostLower.startsWith('[::1]') ||
         hostLower.startsWith('[0:0:0:0:0:0:0:1]'));
+}
+class DecodedURL extends URL {
+    constructor(url, base) {
+        super(url, base);
+        this._decodedUsername = decodeURIComponent(super.username);
+        this._decodedPassword = decodeURIComponent(super.password);
+    }
+    get username() {
+        return this._decodedUsername;
+    }
+    get password() {
+        return this._decodedPassword;
+    }
 }
 //# sourceMappingURL=proxy.js.map
 
@@ -29206,7 +29219,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports._testExports = exports.createSummary = exports.addComments = exports.getRegexParser = exports.getKnownParser = exports.generateSarif = void 0;
+exports._testExports = void 0;
+exports.generateSarif = generateSarif;
+exports.getKnownParser = getKnownParser;
+exports.getRegexParser = getRegexParser;
+exports.addComments = addComments;
+exports.createSummary = createSummary;
 const github_1 = __nccwpck_require__(5438);
 const core_1 = __nccwpck_require__(2186);
 const path_1 = __importDefault(__nccwpck_require__(1017));
@@ -29327,7 +29345,6 @@ function generateSarif(issues, identifier, analysisPath) {
         runs: [{ tool: { driver: { name: identifier, rules } }, results }]
     };
 }
-exports.generateSarif = generateSarif;
 function getKnownParser(identifier) {
     const parser = knownParsers[identifier];
     if (parser == null) {
@@ -29335,11 +29352,9 @@ function getKnownParser(identifier) {
     }
     return parser;
 }
-exports.getKnownParser = getKnownParser;
 function getRegexParser(regex, levelMap) {
     return (input) => parseRegex(input, regex, levelMap);
 }
-exports.getRegexParser = getRegexParser;
 async function addComments(issues, githubToken, identifier, owner, repo, prNumber, analysisPath) {
     /* eslint camelcase: ["error", {allow: ['^pull_number$', '^comment_id$', '^start_side$', '^start_line$']}] */
     const octokit = (0, github_1.getOctokit)(githubToken);
@@ -29413,7 +29428,6 @@ async function addComments(issues, githubToken, identifier, owner, repo, prNumbe
     await octokit.rest.pulls.createReview({ owner, repo, pull_number: prNumber, event: 'COMMENT', comments });
     (0, core_1.debug)('Sent comments');
 }
-exports.addComments = addComments;
 async function createSummary(issues, identifier, analysisPath) {
     const table = [
         [
@@ -29439,7 +29453,6 @@ async function createSummary(issues, identifier, analysisPath) {
     }
     await core_1.summary.write();
 }
-exports.createSummary = createSummary;
 exports._testExports = {
     normalizePath
 };
@@ -31341,7 +31354,7 @@ var __webpack_exports__ = {};
 var exports = __webpack_exports__;
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.run = void 0;
+exports.run = run;
 const fs_1 = __nccwpck_require__(7147);
 const github_1 = __nccwpck_require__(5438);
 const core_1 = __nccwpck_require__(2186);
@@ -31386,7 +31399,6 @@ async function run() {
         }
     }
 }
-exports.run = run;
 void run().finally(() => { });
 
 })();
