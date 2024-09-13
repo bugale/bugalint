@@ -29206,7 +29206,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.createSummary = exports.addComments = exports.getRegexParser = exports.getKnownParser = exports.generateSarif = void 0;
+exports._testExports = exports.createSummary = exports.addComments = exports.getRegexParser = exports.getKnownParser = exports.generateSarif = void 0;
 const github_1 = __nccwpck_require__(5438);
 const core_1 = __nccwpck_require__(2186);
 const path_1 = __importDefault(__nccwpck_require__(1017));
@@ -29279,7 +29279,16 @@ const knownParsers = {
     yamllint: (input) => parseRegex(input, /^(?<path>[^:\n]+):(?<line>\d+):(?<col>\d+): \[(?<level>[^\n\]]+)\] (?<msg>[^\n]+) \((?<id>[^\n)]+)\)$/gm)
 };
 function normalizePath(givenPath, analysisPath) {
-    return path_1.default.relative('.', path_1.default.join(analysisPath.replace(/\\/g, '/'), givenPath.replace(/\\/g, '/'))).replace(/\\/g, '/');
+    const fileUrlPrefix = 'file:///';
+    if (givenPath.startsWith(fileUrlPrefix)) {
+        givenPath = givenPath.slice(fileUrlPrefix.length);
+    }
+    analysisPath = analysisPath.replace(/\\/g, '/');
+    givenPath = givenPath.replace(/\\/g, '/');
+    if (path_1.default.isAbsolute(givenPath)) {
+        return path_1.default.relative('.', givenPath).replace(/\\/g, '/');
+    }
+    return path_1.default.relative('.', path_1.default.join(analysisPath, givenPath)).replace(/\\/g, '/');
 }
 function generateSarif(issues, identifier, analysisPath) {
     const rulesIndices = {};
@@ -29431,6 +29440,9 @@ async function createSummary(issues, identifier, analysisPath) {
     await core_1.summary.write();
 }
 exports.createSummary = createSummary;
+exports._testExports = {
+    normalizePath
+};
 
 
 /***/ }),

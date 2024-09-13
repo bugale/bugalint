@@ -95,7 +95,16 @@ const knownParsers: Record<string, Parser> = {
 }
 
 function normalizePath(givenPath: string, analysisPath: string): string {
-  return path.relative('.', path.join(analysisPath.replace(/\\/g, '/'), givenPath.replace(/\\/g, '/'))).replace(/\\/g, '/')
+  const fileUrlPrefix = 'file:///'
+  if (givenPath.startsWith(fileUrlPrefix)) {
+    givenPath = givenPath.slice(fileUrlPrefix.length)
+  }
+  analysisPath = analysisPath.replace(/\\/g, '/')
+  givenPath = givenPath.replace(/\\/g, '/')
+  if (path.isAbsolute(givenPath)) {
+    return path.relative('.', givenPath).replace(/\\/g, '/')
+  }
+  return path.relative('.', path.join(analysisPath, givenPath)).replace(/\\/g, '/')
 }
 
 export function generateSarif(issues: Iterable<Issue>, identifier: string, analysisPath: string): Log {
@@ -263,4 +272,8 @@ export async function createSummary(issues: Iterable<Issue>, identifier: string,
     summary.addHeading(`${identifier} Analysis Did Not Find Issues ✅`)
   }
   await summary.write()
+}
+
+export const _testExports = {
+  normalizePath
 }

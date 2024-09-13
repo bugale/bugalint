@@ -1,6 +1,6 @@
 import '@microsoft/jest-sarif'
 import { readFileSync } from 'fs'
-import { generateSarif, getKnownParser, getRegexParser, type Parser } from '../src/bugalint'
+import { generateSarif, getKnownParser, getRegexParser, _testExports, type Parser } from '../src/bugalint'
 
 describe('fullConversion', () => {
   it.each([
@@ -26,4 +26,14 @@ describe('fullConversion', () => {
     expect(result).toBeValidSarifLog()
     expect(JSON.parse(JSON.stringify(result))).toStrictEqual(JSON.parse(output))
   })
+})
+
+describe('windowsFileUrl', () => {
+  if (process.platform === 'win32') {
+    it('should convert Windows file URLs to relative URLs', () => {
+      process.chdir('C:\\')
+      expect(_testExports.normalizePath('file:///C:/a/test.txt', 'C:\\')).toBe('a/test.txt')
+      expect(_testExports.normalizePath('file:///C:/a/test.txt', '.')).toBe('a/test.txt')
+    })
+  }
 })
