@@ -78,6 +78,7 @@ jobs:
           - {linter: 'pylint', format: 'pylint', regex: '', levelMap: '', analysisPath: '.'}
           - {linter: 'mdl', format: 'mdl', regex: '', levelMap: '', analysisPath: '.'}
           - {linter: 'yamllint', format: 'yamllint', regex: '', levelMap: '', analysisPath: '.'}
+          - {linter: 'ghalint', format: 'ghalint', regex: '', levelMap: '', analysisPath: '.'}
           - {linter: 'sarif', format: 'sarif', regex: '', levelMap: '', analysisPath: '.'}
           - {linter: 'flake8subpath', format: 'flake8', regex: '', levelMap: '', analysisPath: 'A\B'}
           - linter: 'custom'

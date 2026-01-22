@@ -30007,7 +30007,8 @@ const knownParsers = {
     mypy: (input) => parseRegex(input, /^(?<path>[^:\n]+):(?:(?<line>\d+):)?(?:(?<col>\d+):)?(?:(?<eline>\d+):)?(?:(?<ecol>\d+):)? (?<level>[^:\s]+): (?<msg>.+?)\s*(?:\[(?<id>\S+)\])?$/gm),
     flake8: (input) => parseRegex(input, /^(?<path>[^:\n]+):(?<line>\d+):(?<col>\d+): (?<id>\w\d+) (?<msg>[^\n]+)$/gm),
     mdl: (input) => parseRegex(input, /^(?<path>[^:\n]+)(?::(?<line>\d+))?(?::(?<col>\d+))? (?<id>[^/\n]+)\/(?<sym>[^\s]+) (?<msg>[^\n]+)$/gm),
-    yamllint: (input) => parseRegex(input, /^(?<path>[^:\n]+):(?<line>\d+):(?<col>\d+): \[(?<level>[^\n\]]+)\] (?<msg>[^\n]+) \((?<id>[^\n)]+)\)$/gm)
+    yamllint: (input) => parseRegex(input, /^(?<path>[^:\n]+):(?<line>\d+):(?<col>\d+): \[(?<level>[^\n\]]+)\] (?<msg>[^\n]+) \((?<id>[^\n)]+)\)$/gm),
+    ghalint: (input) => parseRegex(input, /^(?=.*\berror="(?<msg>[^\n=]*)")(?=.*\bpolicy_name=(?<sym>[^\s=\n]*))(?=.*\bworkflow_file_path=(?<path>[^\s=\n]*))[^\n]*$/gm)
 };
 function normalizePath(givenPath, analysisPath) {
     const fileUrlPrefix = 'file:///';
