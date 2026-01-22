@@ -1,0 +1,25 @@
+---
+name: Cancel Stale Merge Queue Workflows
+on:
+  merge_group:
+    types:
+      - destroyed
+
+# See https://github.com/orgs/community/discussions/137976
+jobs:
+  cancel-workflows:
+    name: Cancel Workflow Runs
+    runs-on: sentinel-general-use-runner
+    permissions:
+      actions: write
+      contents: read
+    if: github.event.reason != 'merged'
+    steps:
+      - name: Cancel Workflow Runs
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            ;(await github.rest.actions.listWorkflowRunsForRepo({ ..context.repo, head_sha: context.sha }))
+              .data.workflow_runs
+              .filter(r => r.status !== 'completed' && r.id !== context.runId)
+              .forEach(r => github.rest.actions.cancelWorkflowRun({ ..context.repo, run_id: r.id }))

@@ -1,0 +1,11 @@
+---
+excludes: # These `inherit: secret`s must be used as a workaround for reusable workflows running in an environment
+  - policy_name: deny_inherit_secrets
+    workflow_file_path: .github/workflows/build-manual.yml
+    job_name: sign-production
+  - policy_name: deny_inherit_secrets
+    workflow_file_path: .github/workflows/build-master.yml
+    job_name: sign-production
+  - policy_name: deny_inherit_secrets
+    workflow_file_path: .github/workflows/build-release.yml
+    job_name: sign-production

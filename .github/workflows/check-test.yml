@@ -1,0 +1,41 @@
+---
+name: Check Test
+on:
+  - pull_request
+jobs:
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
+        with:
+          go-version: '1.25.5'
+      - name: Install GHAlint
+        run: go install github.com/suzuki-shunsuke/ghalint/cmd/ghalint@latest
+      - name: Run GHAlint
+        run: ~/go/bin/ghalint run -c .github/workflows/config/.ghalint.yml &> ghalint.txt
+      - name: Strip ANSII Escape Sequences
+        if: always()
+        run: sed -i -E "s/\x1B\[[0-9;]*[mK]//g" ghalint.txt
+      - name: upload
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ghalint-output
+          path: ghalint*.txt
+      - name: Convert
+        uses: ./
+        if: always()
+        with:
+          inputFile: ghalint.txt
+          sarif: false
+          comment: true
+          summary: true
+          toolName: 'ghalint'
+          inputFormat: 'ghalint'
