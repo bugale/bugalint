@@ -91,7 +91,9 @@ const knownParsers: Record<string, Parser> = {
     ),
   flake8: (input: string) => parseRegex(input, /^(?<path>[^:\n]+):(?<line>\d+):(?<col>\d+): (?<id>\w\d+) (?<msg>[^\n]+)$/gm),
   mdl: (input: string) => parseRegex(input, /^(?<path>[^:\n]+)(?::(?<line>\d+))?(?::(?<col>\d+))? (?<id>[^/\n]+)\/(?<sym>[^\s]+) (?<msg>[^\n]+)$/gm),
-  yamllint: (input: string) => parseRegex(input, /^(?<path>[^:\n]+):(?<line>\d+):(?<col>\d+): \[(?<level>[^\n\]]+)\] (?<msg>[^\n]+) \((?<id>[^\n)]+)\)$/gm)
+  yamllint: (input: string) => parseRegex(input, /^(?<path>[^:\n]+):(?<line>\d+):(?<col>\d+): \[(?<level>[^\n\]]+)\] (?<msg>[^\n]+) \((?<id>[^\n)]+)\)$/gm),
+  ghalint: (input: string) =>
+    parseRegex(input, /^(?=.*\berror="(?<msg>[^\n=]*)")(?=.*\bpolicy_name=(?<sym>[^\s=\n]*))(?=.*\bworkflow_file_path=(?<path>[^\s=\n]*))[^\n]*$/gm)
 }
 
 function normalizePath(givenPath: string, analysisPath: string): string {

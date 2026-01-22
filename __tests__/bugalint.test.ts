@@ -9,6 +9,7 @@ describe('fullConversion', () => {
     ['flake8', getKnownParser('flake8'), '.'],
     ['mdl', getKnownParser('mdl'), '.'],
     ['yamllint', getKnownParser('yamllint'), '.'],
+    ['ghalint', getKnownParser('ghalint'), '.'],
     ['sarif', getKnownParser('sarif'), '.'],
     ['flake8subpath', getKnownParser('flake8'), 'A\\B'],
     [

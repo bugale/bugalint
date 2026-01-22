@@ -79,6 +79,8 @@ This action supports a bunch of linter output formats, for which no `inputRegex`
 - `yamllint`: The format of [yamllint](https://yamllint.readthedocs.io/en/stable/) linter's parsable output (requires using `-f parsable` in yamllint's command
   line).
 
+- `ghalint`: The format of [ghallint](https://github.com/suzuki-shunsuke/ghalint/cmd/ghalint/) linter's parsable output.
+
 - `SARIF`: A [standard format for static analysis](https://sarifweb.azurewebsites.net/). This is useful if you already have a SARIF file and want to create a summary
   for it, or create comments on the PR.
 
