@@ -42,6 +42,11 @@ steps:
 
 - `summary`: True by default - generates a markdown summary for the job. If set to false, the action will not generate a markdown summary.
 
+- `fail`: True by default - fails the step if the linter found any issues. If set to false, the action will not fail the step.
+
+- `failOnlyNew`: Set to true to fail only on issues found on lines added in the pull request (requires running on a pull request). If set to false or
+  omitted, the action will fail on any issue. Ignored if `fail` is set to false.
+
 - `toolName`: _(required)_ The `tool name` that will be written in the SARIF output. This is used by both code scanning and auto-pr-commenting to resolve fixed
   issues.
 

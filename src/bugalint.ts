@@ -163,6 +163,7 @@ export function getRegexParser(regex: RegExp, levelMap?: Record<string, Result.l
 
 export async function addComments(
   issues: Iterable<Issue>,
+  prDiff: string,
   githubToken: string,
   identifier: string,
   owner: string,
@@ -184,45 +185,13 @@ export async function addComments(
     }
   }
 
-  const prDiff = (await octokit.rest.pulls.get({ owner, repo, pull_number: prNumber, mediaType: { format: 'diff' } })).data as unknown as string
-  const linesSet: Record<string, Record<number, boolean>> = {}
-  for (const file of parseDiff(prDiff)) {
-    if (file.to == null) {
-      continue
-    }
-    debug(`PR file diff: ${file.to} (${file.chunks.length} chunks)`)
-    linesSet[file.to] = {}
-    for (const chunk of file.chunks) {
-      for (const change of chunk.changes) {
-        if (change.type === 'add') {
-          linesSet[file.to][change?.ln] = true
-        }
-      }
-    }
-  }
-  debug(`linesSet: ${JSON.stringify(linesSet)}`)
+  const addedLines = parseAddedLines(prDiff)
 
   const comments = []
   for (const issue of issues) {
     debug(`Processing issue on ${issue.path}:${issue.line}`)
-    if (issue.path == null || issue.line == null) {
-      continue
-    }
-
-    const normalized = normalizePath(issue.path, analysisPath)
-    debug(`Normalized path: ${normalized}`)
-
-    if (
-      (() => {
-        for (let line = issue.line; line <= (issue.eline ?? issue.line); line++) {
-          if (!linesSet?.[normalized]?.[line]) {
-            return true
-          }
-        }
-        return false
-      })()
-    ) {
-      debug(`Skipping issue on ${normalized}:${issue.line} because it's not in the PR diff`)
+    if (!isNewIssue(issue, addedLines, analysisPath)) {
+      debug(`Skipping issue on ${issue.path}:${issue.line} because it's not in the PR diff`)
       continue
     }
     if (comments.length >= 50) {
@@ -232,7 +201,7 @@ export async function addComments(
 
     const endLine = issue.eline ?? issue.line
     const args = {
-      path: normalized,
+      path: normalizePath(issue.path, analysisPath),
       side: 'RIGHT',
       start_side: 'RIGHT',
       line: endLine,
@@ -249,6 +218,57 @@ export async function addComments(
   debug('Sending comments')
   await octokit.rest.pulls.createReview({ owner, repo, pull_number: prNumber, event: 'COMMENT', comments })
   debug('Sent comments')
+}
+
+export type AddedLines = Record<string, Record<number, boolean>>
+
+export async function getPrDiff(githubToken: string, owner: string, repo: string, prNumber: number): Promise<string> {
+  const octokit = getOctokit(githubToken)
+  return (await octokit.rest.pulls.get({ owner, repo, pull_number: prNumber, mediaType: { format: 'diff' } })).data as unknown as string
+}
+
+export function parseAddedLines(diff: string): AddedLines {
+  const addedLines: AddedLines = {}
+  for (const file of parseDiff(diff)) {
+    if (file.to == null) {
+      continue
+    }
+    debug(`PR file diff: ${file.to} (${file.chunks.length} chunks)`)
+    addedLines[file.to] = {}
+    for (const chunk of file.chunks) {
+      for (const change of chunk.changes) {
+        if (change.type === 'add') {
+          addedLines[file.to][change?.ln] = true
+        }
+      }
+    }
+  }
+  debug(`addedLines: ${JSON.stringify(addedLines)}`)
+  return addedLines
+}
+
+export function isNewIssue(issue: Issue, addedLines: AddedLines, analysisPath: string): issue is Issue & Required<Pick<Issue, 'path' | 'line'>> {
+  if (issue.path == null || issue.line == null) {
+    return false
+  }
+  const normalized = normalizePath(issue.path, analysisPath)
+  for (let line = issue.line; line <= (issue.eline ?? issue.line); line++) {
+    if (!addedLines?.[normalized]?.[line]) {
+      return false
+    }
+  }
+  return true
+}
+
+export function failOnIssues(issues: Iterable<Issue>, toolName: string, analysisPath: string, prDiff?: string): void {
+  let failing = [...issues]
+  if (prDiff != null) {
+    const addedLines = parseAddedLines(prDiff)
+    failing = failing.filter((issue) => isNewIssue(issue, addedLines, analysisPath))
+  }
+  if (failing.length > 0) {
+    throw new Error(`${toolName} found ${failing.length} issues`)
+  }
 }
 
 export async function createSummary(issues: Iterable<Issue>, identifier: string, analysisPath: string): Promise<void> {
