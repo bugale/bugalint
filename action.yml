@@ -17,6 +17,14 @@ inputs:
     description: 'Should the action create a markdown summary'
     required: false
     default: 'true'
+  fail:
+    description: 'Should the action fail the step if issues are found'
+    required: false
+    default: 'true'
+  failOnlyNew:
+    description: 'Should the action fail only on issues found on lines added in the pull request'
+    required: false
+    default: 'false'
   toolName:
     description: 'Name of the tool to be written in the SARIF'
     required: true

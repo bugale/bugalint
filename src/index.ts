@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from 'fs'
 import type { Result } from 'sarif'
 import { context } from '@actions/github'
 import { getInput, getBooleanInput, debug, info, setFailed } from '@actions/core'
-import { generateSarif, getKnownParser, getRegexParser, addComments, createSummary, type Parser } from '../src/bugalint'
+import { generateSarif, getKnownParser, getRegexParser, getPrDiff, addComments, createSummary, failOnIssues, type Parser } from '../src/bugalint'
 
 export async function run(): Promise<void> {
   try {
@@ -10,6 +10,8 @@ export async function run(): Promise<void> {
     const sarif: string = getInput('sarif')
     const comment: boolean = getBooleanInput('comment')
     const summary: boolean = getBooleanInput('summary')
+    const fail: boolean = getBooleanInput('fail')
+    const failOnlyNew: boolean = getBooleanInput('failOnlyNew')
     const toolName: string = getInput('toolName')
     const inputFormat: string = getInput('inputFormat')
     const inputRegex: string = getInput('inputRegex')
@@ -28,15 +30,22 @@ export async function run(): Promise<void> {
     if (sarif !== '') {
       writeFileSync(sarif, JSON.stringify(output))
     }
-    if (comment) {
+    let prDiff: string | undefined
+    if (comment || (fail && failOnlyNew)) {
       const prNumber = context.payload.pull_request?.number
       if (prNumber == null) {
         throw new Error('No pull request number found.')
       }
-      await addComments(parser(input), githubToken, toolName, context.repo.owner, context.repo.repo, prNumber, analysisPath)
+      prDiff = await getPrDiff(githubToken, context.repo.owner, context.repo.repo, prNumber)
+      if (comment) {
+        await addComments(parser(input), prDiff, githubToken, toolName, context.repo.owner, context.repo.repo, prNumber, analysisPath)
+      }
     }
     if (summary) {
       await createSummary(parser(input), toolName, analysisPath)
+    }
+    if (fail) {
+      failOnIssues(parser(input), toolName, analysisPath, failOnlyNew ? prDiff : undefined)
     }
   } catch (error) {
     if (error instanceof Error) {

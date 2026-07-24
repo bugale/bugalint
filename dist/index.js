@@ -29937,6 +29937,10 @@ exports.generateSarif = generateSarif;
 exports.getKnownParser = getKnownParser;
 exports.getRegexParser = getRegexParser;
 exports.addComments = addComments;
+exports.getPrDiff = getPrDiff;
+exports.parseAddedLines = parseAddedLines;
+exports.isNewIssue = isNewIssue;
+exports.failOnIssues = failOnIssues;
 exports.createSummary = createSummary;
 const github_1 = __nccwpck_require__(3228);
 const core_1 = __nccwpck_require__(7484);
@@ -30069,7 +30073,7 @@ function getKnownParser(identifier) {
 function getRegexParser(regex, levelMap) {
     return (input) => parseRegex(input, regex, levelMap);
 }
-async function addComments(issues, githubToken, identifier, owner, repo, prNumber, analysisPath) {
+async function addComments(issues, prDiff, githubToken, identifier, owner, repo, prNumber, analysisPath) {
     /* eslint camelcase: ["error", {allow: ['^pull_number$', '^comment_id$', '^start_side$', '^start_line$']}] */
     const octokit = (0, github_1.getOctokit)(githubToken);
     (0, core_1.debug)('Deleting old comments');
@@ -30082,40 +30086,12 @@ async function addComments(issues, githubToken, identifier, owner, repo, prNumbe
             }
         }
     }
-    const prDiff = (await octokit.rest.pulls.get({ owner, repo, pull_number: prNumber, mediaType: { format: 'diff' } })).data;
-    const linesSet = {};
-    for (const file of (0, parse_diff_1.default)(prDiff)) {
-        if (file.to == null) {
-            continue;
-        }
-        (0, core_1.debug)(`PR file diff: ${file.to} (${file.chunks.length} chunks)`);
-        linesSet[file.to] = {};
-        for (const chunk of file.chunks) {
-            for (const change of chunk.changes) {
-                if (change.type === 'add') {
-                    linesSet[file.to][change?.ln] = true;
-                }
-            }
-        }
-    }
-    (0, core_1.debug)(`linesSet: ${JSON.stringify(linesSet)}`);
+    const addedLines = parseAddedLines(prDiff);
     const comments = [];
     for (const issue of issues) {
         (0, core_1.debug)(`Processing issue on ${issue.path}:${issue.line}`);
-        if (issue.path == null || issue.line == null) {
-            continue;
-        }
-        const normalized = normalizePath(issue.path, analysisPath);
-        (0, core_1.debug)(`Normalized path: ${normalized}`);
-        if ((() => {
-            for (let line = issue.line; line <= (issue.eline ?? issue.line); line++) {
-                if (!linesSet?.[normalized]?.[line]) {
-                    return true;
-                }
-            }
-            return false;
-        })()) {
-            (0, core_1.debug)(`Skipping issue on ${normalized}:${issue.line} because it's not in the PR diff`);
+        if (!isNewIssue(issue, addedLines, analysisPath)) {
+            (0, core_1.debug)(`Skipping issue on ${issue.path}:${issue.line} because it's not in the PR diff`);
             continue;
         }
         if (comments.length >= 50) {
@@ -30124,7 +30100,7 @@ async function addComments(issues, githubToken, identifier, owner, repo, prNumbe
         }
         const endLine = issue.eline ?? issue.line;
         const args = {
-            path: normalized,
+            path: normalizePath(issue.path, analysisPath),
             side: 'RIGHT',
             start_side: 'RIGHT',
             line: endLine,
@@ -30141,6 +30117,51 @@ async function addComments(issues, githubToken, identifier, owner, repo, prNumbe
     (0, core_1.debug)('Sending comments');
     await octokit.rest.pulls.createReview({ owner, repo, pull_number: prNumber, event: 'COMMENT', comments });
     (0, core_1.debug)('Sent comments');
+}
+async function getPrDiff(githubToken, owner, repo, prNumber) {
+    const octokit = (0, github_1.getOctokit)(githubToken);
+    return (await octokit.rest.pulls.get({ owner, repo, pull_number: prNumber, mediaType: { format: 'diff' } })).data;
+}
+function parseAddedLines(diff) {
+    const addedLines = {};
+    for (const file of (0, parse_diff_1.default)(diff)) {
+        if (file.to == null) {
+            continue;
+        }
+        (0, core_1.debug)(`PR file diff: ${file.to} (${file.chunks.length} chunks)`);
+        addedLines[file.to] = {};
+        for (const chunk of file.chunks) {
+            for (const change of chunk.changes) {
+                if (change.type === 'add') {
+                    addedLines[file.to][change?.ln] = true;
+                }
+            }
+        }
+    }
+    (0, core_1.debug)(`addedLines: ${JSON.stringify(addedLines)}`);
+    return addedLines;
+}
+function isNewIssue(issue, addedLines, analysisPath) {
+    if (issue.path == null || issue.line == null) {
+        return false;
+    }
+    const normalized = normalizePath(issue.path, analysisPath);
+    for (let line = issue.line; line <= (issue.eline ?? issue.line); line++) {
+        if (!addedLines?.[normalized]?.[line]) {
+            return false;
+        }
+    }
+    return true;
+}
+function failOnIssues(issues, toolName, analysisPath, prDiff) {
+    let failing = [...issues];
+    if (prDiff != null) {
+        const addedLines = parseAddedLines(prDiff);
+        failing = failing.filter((issue) => isNewIssue(issue, addedLines, analysisPath));
+    }
+    if (failing.length > 0) {
+        throw new Error(`${toolName} found ${failing.length} issues`);
+    }
 }
 async function createSummary(issues, identifier, analysisPath) {
     const table = [
@@ -32103,6 +32124,8 @@ async function run() {
         const sarif = (0, core_1.getInput)('sarif');
         const comment = (0, core_1.getBooleanInput)('comment');
         const summary = (0, core_1.getBooleanInput)('summary');
+        const fail = (0, core_1.getBooleanInput)('fail');
+        const failOnlyNew = (0, core_1.getBooleanInput)('failOnlyNew');
         const toolName = (0, core_1.getInput)('toolName');
         const inputFormat = (0, core_1.getInput)('inputFormat');
         const inputRegex = (0, core_1.getInput)('inputRegex');
@@ -32119,15 +32142,22 @@ async function run() {
         if (sarif !== '') {
             (0, fs_1.writeFileSync)(sarif, JSON.stringify(output));
         }
-        if (comment) {
+        let prDiff;
+        if (comment || (fail && failOnlyNew)) {
             const prNumber = github_1.context.payload.pull_request?.number;
             if (prNumber == null) {
                 throw new Error('No pull request number found.');
             }
-            await (0, bugalint_1.addComments)(parser(input), githubToken, toolName, github_1.context.repo.owner, github_1.context.repo.repo, prNumber, analysisPath);
+            prDiff = await (0, bugalint_1.getPrDiff)(githubToken, github_1.context.repo.owner, github_1.context.repo.repo, prNumber);
+            if (comment) {
+                await (0, bugalint_1.addComments)(parser(input), prDiff, githubToken, toolName, github_1.context.repo.owner, github_1.context.repo.repo, prNumber, analysisPath);
+            }
         }
         if (summary) {
             await (0, bugalint_1.createSummary)(parser(input), toolName, analysisPath);
+        }
+        if (fail) {
+            (0, bugalint_1.failOnIssues)(parser(input), toolName, analysisPath, failOnlyNew ? prDiff : undefined);
         }
     }
     catch (error) {
