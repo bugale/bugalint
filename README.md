@@ -35,14 +35,12 @@ steps:
 
 - `inputFile`: _(required)_ The path to the input file, i.e. the file containing the output of the linter.
 
-- `sarif`: True by default - generates a SARIF file as an output. If set to false, the action will not generate a SARIF file.
+- `sarif`: The path to the output SARIF file this action should generate. If not specified, the action will generate a `sarif.json` file in the root of the
+  repository. If set to an empty string, the action will not write a SARIF file. The SARIF is always generated and printed to the workflow log.
 
 - `comment`: Set to true to comment on the PR with the issues. If set to false or ommitted, the action will not comment on the PR.
 
 - `summary`: True by default - generates a markdown summary for the job. If set to false, the action will not generate a markdown summary.
-
-- `outputFile`: The path to the output SARIF file this action should generate. If not specified, the action will generate a `sarif.json` file in the root of
-  the repository.
 
 - `toolName`: _(required)_ The `tool name` that will be written in the SARIF output. This is used by both code scanning and auto-pr-commenting to resolve fixed
   issues.

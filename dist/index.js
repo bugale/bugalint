@@ -32100,10 +32100,9 @@ const bugalint_1 = __nccwpck_require__(8983);
 async function run() {
     try {
         const inputFile = (0, core_1.getInput)('inputFile');
-        const sarif = (0, core_1.getBooleanInput)('sarif');
+        const sarif = (0, core_1.getInput)('sarif');
         const comment = (0, core_1.getBooleanInput)('comment');
         const summary = (0, core_1.getBooleanInput)('summary');
-        const outputFile = (0, core_1.getInput)('outputFile');
         const toolName = (0, core_1.getInput)('toolName');
         const inputFormat = (0, core_1.getInput)('inputFormat');
         const inputRegex = (0, core_1.getInput)('inputRegex');
@@ -32115,10 +32114,10 @@ async function run() {
             : (0, bugalint_1.getKnownParser)(inputFormat);
         const input = (0, fs_1.readFileSync)(inputFile, 'utf-8').replace(/\r/g, '');
         (0, core_1.debug)(`input: ${input}`);
-        if (sarif) {
-            const output = (0, bugalint_1.generateSarif)(parser(input), toolName, analysisPath);
-            (0, core_1.debug)(`SARIF output: ${JSON.stringify(output, null, 2)}`);
-            (0, fs_1.writeFileSync)(outputFile, JSON.stringify(output));
+        const output = (0, bugalint_1.generateSarif)(parser(input), toolName, analysisPath);
+        (0, core_1.info)(`SARIF output: ${JSON.stringify(output, null, 2)}`);
+        if (sarif !== '') {
+            (0, fs_1.writeFileSync)(sarif, JSON.stringify(output));
         }
         if (comment) {
             const prNumber = github_1.context.payload.pull_request?.number;
