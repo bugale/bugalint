@@ -6,9 +6,9 @@ inputs:
     description: 'Path to the file with the linter output'
     required: true
   sarif:
-    description: 'Should the action create a SARIF file'
+    description: 'Path to the SARIF file this action will generate. Set to an empty string to not write a file'
     required: false
-    default: 'true'
+    default: 'sarif.json'
   comment:
     description: 'Should the action comment on the PR'
     required: false
@@ -17,10 +17,6 @@ inputs:
     description: 'Should the action create a markdown summary'
     required: false
     default: 'true'
-  outputFile:
-    description: 'Path to the SARIF file this action will generate'
-    required: false
-    default: 'sarif.json'
   toolName:
     description: 'Name of the tool to be written in the SARIF'
     required: true

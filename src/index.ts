@@ -1,16 +1,15 @@
 import { readFileSync, writeFileSync } from 'fs'
 import type { Result } from 'sarif'
 import { context } from '@actions/github'
-import { getInput, getBooleanInput, debug, setFailed } from '@actions/core'
+import { getInput, getBooleanInput, debug, info, setFailed } from '@actions/core'
 import { generateSarif, getKnownParser, getRegexParser, addComments, createSummary, type Parser } from '../src/bugalint'
 
 export async function run(): Promise<void> {
   try {
     const inputFile: string = getInput('inputFile')
-    const sarif: boolean = getBooleanInput('sarif')
+    const sarif: string = getInput('sarif')
     const comment: boolean = getBooleanInput('comment')
     const summary: boolean = getBooleanInput('summary')
-    const outputFile: string = getInput('outputFile')
     const toolName: string = getInput('toolName')
     const inputFormat: string = getInput('inputFormat')
     const inputRegex: string = getInput('inputRegex')
@@ -24,10 +23,10 @@ export async function run(): Promise<void> {
         : getKnownParser(inputFormat)
     const input = readFileSync(inputFile, 'utf-8').replace(/\r/g, '')
     debug(`input: ${input}`)
-    if (sarif) {
-      const output = generateSarif(parser(input), toolName, analysisPath)
-      debug(`SARIF output: ${JSON.stringify(output, null, 2)}`)
-      writeFileSync(outputFile, JSON.stringify(output))
+    const output = generateSarif(parser(input), toolName, analysisPath)
+    info(`SARIF output: ${JSON.stringify(output, null, 2)}`)
+    if (sarif !== '') {
+      writeFileSync(sarif, JSON.stringify(output))
     }
     if (comment) {
       const prNumber = context.payload.pull_request?.number
