@@ -76,6 +76,76 @@
           "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "test.py" }, "region": { "startLine": 40, "endLine": 40 } } }],
           "level": "error",
           "message": { "text": "No fix available" }
+        },
+        {
+          "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "test.py" }, "region": { "startLine": 50, "endLine": 51 } } }],
+          "level": "warning",
+          "message": { "text": "Deleted region including the line terminator" },
+          "fixes": [
+            {
+              "artifactChanges": [
+                {
+                  "artifactLocation": { "uri": "test.py" },
+                  "replacements": [
+                    {
+                      "deletedRegion": { "startLine": 50, "startColumn": 1, "endLine": 52, "endColumn": 1 },
+                      "insertedContent": { "text": "a = 1\nb = 2\n" }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "test.py" }, "region": { "startLine": 60, "endLine": 60 } } }],
+          "level": "warning",
+          "message": { "text": "Replacement of a part of a line" },
+          "fixes": [
+            {
+              "artifactChanges": [
+                {
+                  "artifactLocation": { "uri": "test.py" },
+                  "replacements": [
+                    {
+                      "deletedRegion": { "startLine": 60, "startColumn": 5, "endLine": 60, "endColumn": 7 },
+                      "insertedContent": { "text": "===" }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "test.py" }, "region": { "startLine": 70, "endLine": 70 } } }],
+          "level": "warning",
+          "message": { "text": "Replacement of lines other than the reported ones" },
+          "fixes": [
+            {
+              "artifactChanges": [
+                {
+                  "artifactLocation": { "uri": "test.py" },
+                  "replacements": [{ "deletedRegion": { "startLine": 70, "endLine": 71 }, "insertedContent": { "text": "y = 2" } }]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "test.py" }, "region": { "startLine": 80, "endLine": 80 } } }],
+          "level": "warning",
+          "message": { "text": "Replacement ending with an empty line" },
+          "fixes": [
+            {
+              "artifactChanges": [
+                {
+                  "artifactLocation": { "uri": "test.py" },
+                  "replacements": [{ "deletedRegion": { "startLine": 80, "endLine": 80 }, "insertedContent": { "text": "z = 3\n" } }]
+                }
+              ]
+            }
+          ]
         }
       ]
     }

@@ -29985,6 +29985,22 @@ function* parsePylint(input) {
         };
     }
 }
+function parseSarifFix(result, region) {
+    const replacement = result.fixes?.[0]?.artifactChanges?.[0]?.replacements?.[0];
+    const text = replacement?.insertedContent?.text;
+    if (replacement == null || text == null || region?.startLine == null) {
+        return undefined;
+    }
+    const deleted = replacement.deletedRegion;
+    const endLine = region.endLine ?? region.startLine;
+    if (deleted.startLine !== region.startLine || (deleted.startColumn ?? 1) !== 1) {
+        return undefined;
+    }
+    if (deleted.endColumn == null) {
+        return (deleted.endLine ?? deleted.startLine) === endLine ? text : undefined;
+    }
+    return deleted.endColumn === 1 && deleted.endLine === endLine + 1 ? text.replace(/\n$/, '') : undefined;
+}
 function* parseSarif(input) {
     const log = JSON.parse(input);
     for (const run of log.runs) {
@@ -29992,17 +30008,18 @@ function* parseSarif(input) {
             continue;
         }
         for (const issue of run.results) {
+            const region = issue.locations?.[0]?.physicalLocation?.region;
             yield {
                 id: issue.ruleId,
                 sym: issue.ruleIndex != null ? run.tool.driver.rules?.[issue.ruleIndex]?.name : undefined,
                 msg: issue.message.text,
                 level: issue.level,
                 path: issue.locations?.[0]?.physicalLocation?.artifactLocation?.uri,
-                line: issue.locations?.[0]?.physicalLocation?.region?.startLine,
-                col: issue.locations?.[0]?.physicalLocation?.region?.startColumn,
-                eline: issue.locations?.[0]?.physicalLocation?.region?.endLine,
-                ecol: issue.locations?.[0]?.physicalLocation?.region?.endColumn,
-                fix: issue.fixes?.[0]?.artifactChanges?.[0]?.replacements?.[0]?.insertedContent?.text
+                line: region?.startLine,
+                col: region?.startColumn,
+                eline: region?.endLine,
+                ecol: region?.endColumn,
+                fix: parseSarifFix(issue, region)
             };
         }
     }

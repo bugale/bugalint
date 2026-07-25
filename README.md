@@ -140,16 +140,23 @@ entry, so they are only available when `inputFormat` is `sarif`:
 }
 ```
 
-GitHub replaces whole lines, which constrains what a fix may contain:
+GitHub replaces whole lines, so a fix is rendered only when its `deletedRegion` covers exactly the lines of the result's own region, which is what the comment
+is anchored to. Following the SARIF specification, in which an absent `endColumn` means the end of the text of `endLine`, both of the usual ways of writing
+such a region are accepted:
 
-- `deletedRegion` must cover whole lines, i.e. specify only `startLine` and `endLine`, and must match the region of the result itself, which is what the comment
-  is anchored to.
+- `{ "startLine": 3, "endLine": 4 }` covers the text of lines 3 to 4 without the line terminator ending line 4, so `insertedContent.text` is the new text of
+  those lines and must not end with a newline.
 
-- `insertedContent.text` is the exact text replacing those lines, and should not end with a newline. It is never trimmed, so a trailing newline is rendered as a
-  trailing empty line.
+- `{ "startLine": 3, "startColumn": 1, "endLine": 5, "endColumn": 1 }` covers the same lines including the line terminator ending line 4, so
+  `insertedContent.text` must end with a newline. Exactly one is removed when rendering the suggestion.
 
-- An empty `insertedContent.text` renders as an empty suggestion, which deletes the lines. A replacement consisting of a single empty line is therefore
-  indistinguishable from a deletion, and cannot be expressed. A producer that needs one should widen the replacement to include a neighbouring line.
+Any other `deletedRegion`, such as one replacing a part of a line or lines other than the reported ones, cannot be rendered as a suggestion. Such a fix is
+ignored, and the issue is commented on without one.
+
+The text itself is never trimmed beyond the single line terminator described above, so an additional trailing newline is rendered as a trailing empty line.
+An empty `insertedContent.text` renders as an empty suggestion, which deletes the lines. A replacement consisting of a single empty line is written exactly the
+same way in either form, so it is indistinguishable from a deletion and cannot be expressed. A producer that needs one should widen the replacement to include
+a neighbouring line.
 
 ### Example With Custom Regex
 
