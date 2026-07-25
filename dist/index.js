@@ -29938,8 +29938,9 @@ exports.getKnownParser = getKnownParser;
 exports.getRegexParser = getRegexParser;
 exports.addComments = addComments;
 exports.getPrDiff = getPrDiff;
-exports.parseAddedLines = parseAddedLines;
+exports.parseDiffLines = parseDiffLines;
 exports.isNewIssue = isNewIssue;
+exports.isCommentableIssue = isCommentableIssue;
 exports.failOnIssues = failOnIssues;
 exports.createSummary = createSummary;
 const github_1 = __nccwpck_require__(3228);
@@ -30108,12 +30109,16 @@ async function addComments(issues, prDiff, githubToken, identifier, owner, repo,
             }
         }
     }
-    const addedLines = parseAddedLines(prDiff);
+    const diffLines = parseDiffLines(prDiff);
     const comments = [];
     for (const issue of issues) {
         (0, core_1.debug)(`Processing issue on ${issue.path}:${issue.line}`);
-        if (!isNewIssue(issue, addedLines, analysisPath)) {
+        if (!isNewIssue(issue, diffLines, analysisPath)) {
             (0, core_1.debug)(`Skipping issue on ${issue.path}:${issue.line} because it's not in the PR diff`);
+            continue;
+        }
+        if (!isCommentableIssue(issue, diffLines, analysisPath)) {
+            (0, core_1.debug)(`Skipping issue on ${issue.path}:${issue.line} because GitHub rejects comments spanning lines outside the PR diff`);
             continue;
         }
         if (comments.length >= 50) {
@@ -30144,42 +30149,54 @@ async function getPrDiff(githubToken, owner, repo, prNumber) {
     const octokit = (0, github_1.getOctokit)(githubToken);
     return (await octokit.rest.pulls.get({ owner, repo, pull_number: prNumber, mediaType: { format: 'diff' } })).data;
 }
-function parseAddedLines(diff) {
-    const addedLines = {};
+function parseDiffLines(diff) {
+    const diffLines = {};
     for (const file of (0, parse_diff_1.default)(diff)) {
         if (file.to == null) {
             continue;
         }
         (0, core_1.debug)(`PR file diff: ${file.to} (${file.chunks.length} chunks)`);
-        addedLines[file.to] = {};
+        diffLines[file.to] = {};
         for (const chunk of file.chunks) {
             for (const change of chunk.changes) {
                 if (change.type === 'add') {
-                    addedLines[file.to][change?.ln] = true;
+                    diffLines[file.to][change.ln] = true;
+                }
+                else if (change.type === 'normal') {
+                    diffLines[file.to][change.ln2] = false;
                 }
             }
         }
     }
-    (0, core_1.debug)(`addedLines: ${JSON.stringify(addedLines)}`);
-    return addedLines;
+    (0, core_1.debug)(`diffLines: ${JSON.stringify(diffLines)}`);
+    return diffLines;
 }
-function isNewIssue(issue, addedLines, analysisPath) {
+function issueLines(line, eline) {
+    const lines = [];
+    for (let current = line; current <= (eline ?? line); current++) {
+        lines.push(current);
+    }
+    return lines;
+}
+function isNewIssue(issue, diffLines, analysisPath) {
     if (issue.path == null || issue.line == null) {
         return false;
     }
-    const normalized = normalizePath(issue.path, analysisPath);
-    for (let line = issue.line; line <= (issue.eline ?? issue.line); line++) {
-        if (!addedLines?.[normalized]?.[line]) {
-            return false;
-        }
+    const lines = diffLines[normalizePath(issue.path, analysisPath)];
+    return issueLines(issue.line, issue.eline).some((line) => lines?.[line] ?? false);
+}
+function isCommentableIssue(issue, diffLines, analysisPath) {
+    if (issue.path == null || issue.line == null) {
+        return false;
     }
-    return true;
+    const lines = diffLines[normalizePath(issue.path, analysisPath)];
+    return issueLines(issue.line, issue.eline).every((line) => lines?.[line] != null);
 }
 function failOnIssues(issues, toolName, analysisPath, prDiff) {
     let failing = [...issues];
     if (prDiff != null) {
-        const addedLines = parseAddedLines(prDiff);
-        failing = failing.filter((issue) => isNewIssue(issue, addedLines, analysisPath));
+        const diffLines = parseDiffLines(prDiff);
+        failing = failing.filter((issue) => isNewIssue(issue, diffLines, analysisPath));
     }
     if (failing.length > 0) {
         throw new Error(`${toolName} found ${failing.length} issues`);

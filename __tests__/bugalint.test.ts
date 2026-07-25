@@ -1,6 +1,16 @@
 import '@microsoft/jest-sarif'
 import { readFileSync } from 'fs'
-import { generateSarif, getKnownParser, getRegexParser, parseAddedLines, isNewIssue, failOnIssues, _testExports, type Parser } from '../src/bugalint'
+import {
+  generateSarif,
+  getKnownParser,
+  getRegexParser,
+  parseDiffLines,
+  isNewIssue,
+  isCommentableIssue,
+  failOnIssues,
+  _testExports,
+  type Parser
+} from '../src/bugalint'
 
 describe('fullConversion', () => {
   it.each([
@@ -41,24 +51,31 @@ index 1111111..2222222 100644
 +import sys
 +x = 1
 `
-  const addedLines = parseAddedLines(diff)
+  const diffLines = parseDiffLines(diff)
 
-  it('collects added line numbers per file', () => {
-    expect(addedLines).toStrictEqual({ 'A/B/test.py': { 2: true, 3: true } })
+  it('collects the lines of the diff per file, marking the added ones', () => {
+    expect(diffLines).toStrictEqual({ 'A/B/test.py': { 1: false, 2: true, 3: true } })
   })
 
-  it('accepts issues contained in added lines', () => {
-    expect(isNewIssue({ path: 'A/B/test.py', line: 2 }, addedLines, '.')).toBe(true)
-    expect(isNewIssue({ path: 'A/B/test.py', line: 2, eline: 3 }, addedLines, '.')).toBe(true)
-    expect(isNewIssue({ path: 'test.py', line: 3 }, addedLines, 'A\\B')).toBe(true)
+  it('accepts issues overlapping an added line', () => {
+    expect(isNewIssue({ path: 'A/B/test.py', line: 2 }, diffLines, '.')).toBe(true)
+    expect(isNewIssue({ path: 'A/B/test.py', line: 2, eline: 3 }, diffLines, '.')).toBe(true)
+    expect(isNewIssue({ path: 'A/B/test.py', line: 1, eline: 2 }, diffLines, '.')).toBe(true)
+    expect(isNewIssue({ path: 'test.py', line: 3 }, diffLines, 'A\\B')).toBe(true)
   })
 
-  it('rejects issues not fully contained in added lines', () => {
-    expect(isNewIssue({ path: 'A/B/test.py', line: 1 }, addedLines, '.')).toBe(false)
-    expect(isNewIssue({ path: 'A/B/test.py', line: 1, eline: 2 }, addedLines, '.')).toBe(false)
-    expect(isNewIssue({ path: 'A/B/other.py', line: 2 }, addedLines, '.')).toBe(false)
-    expect(isNewIssue({ line: 2 }, addedLines, '.')).toBe(false)
-    expect(isNewIssue({ path: 'A/B/test.py' }, addedLines, '.')).toBe(false)
+  it('rejects issues not overlapping any added line', () => {
+    expect(isNewIssue({ path: 'A/B/test.py', line: 1 }, diffLines, '.')).toBe(false)
+    expect(isNewIssue({ path: 'A/B/other.py', line: 2 }, diffLines, '.')).toBe(false)
+    expect(isNewIssue({ line: 2 }, diffLines, '.')).toBe(false)
+    expect(isNewIssue({ path: 'A/B/test.py' }, diffLines, '.')).toBe(false)
+  })
+
+  it('comments only on issues whose whole range is in the diff', () => {
+    expect(isCommentableIssue({ path: 'A/B/test.py', line: 1, eline: 3 }, diffLines, '.')).toBe(true)
+    expect(isCommentableIssue({ path: 'A/B/test.py', line: 3, eline: 4 }, diffLines, '.')).toBe(false)
+    expect(isCommentableIssue({ path: 'A/B/other.py', line: 1 }, diffLines, '.')).toBe(false)
+    expect(isCommentableIssue({ path: 'A/B/test.py' }, diffLines, '.')).toBe(false)
   })
 
   describe('failOnIssues', () => {

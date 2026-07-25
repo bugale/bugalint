@@ -39,14 +39,16 @@ steps:
   repository. If set to an empty string, the action will not write a SARIF file. The SARIF is always generated and printed to the workflow log.
 
 - `comment`: Set to true to comment on the PR with the issues. If set to false or ommitted, the action will not comment on the PR. Issues that carry a fix are
-  commented as [suggested changes](#suggested-changes).
+  commented as [suggested changes](#suggested-changes). An issue is commented on only if every line it spans is part of the pull request's diff, as GitHub
+  rejects comments anchored outside it.
 
 - `summary`: True by default - generates a markdown summary for the job. If set to false, the action will not generate a markdown summary.
 
 - `fail`: True by default - fails the step if the linter found any issues. If set to false, the action will not fail the step.
 
 - `failOnlyNew`: Set to true to fail only on issues found on lines added in the pull request (requires running on a pull request). If set to false or
-  omitted, the action will fail on any issue. Ignored if `fail` is set to false.
+  omitted, the action will fail on any issue. Ignored if `fail` is set to false. An issue spanning several lines is considered new if any one of them was
+  added, since fixing such an issue usually requires changing the lines around it as well.
 
 - `toolName`: _(required)_ The `tool name` that will be written in the SARIF output. This is used by both code scanning and auto-pr-commenting to resolve fixed
   issues.
