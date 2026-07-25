@@ -30000,7 +30000,8 @@ function* parseSarif(input) {
                 line: issue.locations?.[0]?.physicalLocation?.region?.startLine,
                 col: issue.locations?.[0]?.physicalLocation?.region?.startColumn,
                 eline: issue.locations?.[0]?.physicalLocation?.region?.endLine,
-                ecol: issue.locations?.[0]?.physicalLocation?.region?.endColumn
+                ecol: issue.locations?.[0]?.physicalLocation?.region?.endColumn,
+                fix: issue.fixes?.[0]?.artifactChanges?.[0]?.replacements?.[0]?.insertedContent?.text
             };
         }
     }
@@ -30035,12 +30036,13 @@ function generateSarif(issues, identifier, analysisPath) {
             rulesIndices[issue.id] = rules.length;
             rules.push({ id: issue.id, name: issue.sym });
         }
+        const uri = issue.path != null ? normalizePath(issue.path, analysisPath) : undefined;
         results.push({
             message: { text: issue.msg ?? undefined },
             locations: [
                 {
                     physicalLocation: {
-                        artifactLocation: { uri: issue.path != null ? normalizePath(issue.path, analysisPath) : undefined },
+                        artifactLocation: { uri },
                         region: issue.line != null || issue.col != null || issue.eline != null || issue.ecol != null
                             ? {
                                 startLine: issue.line ?? undefined,
@@ -30052,6 +30054,18 @@ function generateSarif(issues, identifier, analysisPath) {
                     }
                 }
             ],
+            fixes: issue.fix != null && uri != null && issue.line != null
+                ? [
+                    {
+                        artifactChanges: [
+                            {
+                                artifactLocation: { uri },
+                                replacements: [{ deletedRegion: { startLine: issue.line, endLine: issue.eline ?? issue.line }, insertedContent: { text: issue.fix } }]
+                            }
+                        ]
+                    }
+                ]
+                : undefined,
             level: issue.level ?? undefined,
             ruleId: issue.id ?? issue.sym ?? undefined,
             ruleIndex: issue.id != null ? rulesIndices[issue.id] : undefined
@@ -30072,6 +30086,14 @@ function getKnownParser(identifier) {
 }
 function getRegexParser(regex, levelMap) {
     return (input) => parseRegex(input, regex, levelMap);
+}
+function buildCommentBody(commentTag, identifier, issue) {
+    const body = `${commentTag}\n**${issue.msg}**\n[${[issue.level, identifier, issue.id, issue.sym].filter((n) => n).join(':')}]`;
+    if (issue.fix == null) {
+        return body;
+    }
+    const fence = '`'.repeat(Math.max(3, ...Array.from(issue.fix.matchAll(/`+/g), (m) => m[0].length + 1)));
+    return `${body}\n${fence}suggestion\n${issue.fix === '' ? '' : `${issue.fix}\n`}${fence}`;
 }
 async function addComments(issues, prDiff, githubToken, identifier, owner, repo, prNumber, analysisPath) {
     /* eslint camelcase: ["error", {allow: ['^pull_number$', '^comment_id$', '^start_side$', '^start_line$']}] */
@@ -30105,7 +30127,7 @@ async function addComments(issues, prDiff, githubToken, identifier, owner, repo,
             start_side: 'RIGHT',
             line: endLine,
             start_line: endLine === issue.line ? undefined : issue.line,
-            body: `${commentTag}\n**${issue.msg}**\n[${[issue.level, identifier, issue.id, issue.sym].filter((n) => n).join(':')}]`
+            body: buildCommentBody(commentTag, identifier, issue)
         };
         (0, core_1.debug)(`Generating comment ${JSON.stringify(args)}`);
         comments.push(args);
@@ -30189,7 +30211,8 @@ async function createSummary(issues, identifier, analysisPath) {
     await core_1.summary.write();
 }
 exports._testExports = {
-    normalizePath
+    normalizePath,
+    buildCommentBody
 };
 
 

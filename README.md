@@ -38,7 +38,8 @@ steps:
 - `sarif`: The path to the output SARIF file this action should generate. If not specified, the action will generate a `sarif.json` file in the root of the
   repository. If set to an empty string, the action will not write a SARIF file. The SARIF is always generated and printed to the workflow log.
 
-- `comment`: Set to true to comment on the PR with the issues. If set to false or ommitted, the action will not comment on the PR.
+- `comment`: Set to true to comment on the PR with the issues. If set to false or ommitted, the action will not comment on the PR. Issues that carry a fix are
+  commented as [suggested changes](#suggested-changes).
 
 - `summary`: True by default - generates a markdown summary for the job. If set to false, the action will not generate a markdown summary.
 
@@ -85,7 +86,7 @@ This action supports a bunch of linter output formats, for which no `inputRegex`
 - `ghalint`: The format of [ghallint](https://github.com/suzuki-shunsuke/ghalint/cmd/ghalint/) linter's parsable output.
 
 - `SARIF`: A [standard format for static analysis](https://sarifweb.azurewebsites.net/). This is useful if you already have a SARIF file and want to create a summary
-  for it, or create comments on the PR.
+  for it, or create comments on the PR. This is also the only input format that can carry [suggested changes](#suggested-changes).
 
 #### Input Regex Named Groups
 
@@ -112,6 +113,41 @@ The supported named groups are:
 - `eline`: The end line on which the issue was reported.
 
 - `ecol`: The end column on which the issue was reported.
+
+### Suggested Changes
+
+When an issue carries a fix, the comment posted on the pull request contains it as a
+[suggested change](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/reviewing-changes-in-pull-requests/incorporating-feedback-in-your-pull-request),
+which a reviewer can apply in one click. Fixes are read from the first `replacements` entry of the first `artifactChanges` entry of the result's first `fixes`
+entry, so they are only available when `inputFormat` is `sarif`:
+
+```json
+{
+  "message": { "text": "Not formatted correctly" },
+  "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "test.py" }, "region": { "startLine": 3, "endLine": 4 } } }],
+  "fixes": [
+    {
+      "artifactChanges": [
+        {
+          "artifactLocation": { "uri": "test.py" },
+          "replacements": [{ "deletedRegion": { "startLine": 3, "endLine": 4 }, "insertedContent": { "text": "def f():\n    return 1" } }]
+        }
+      ]
+    }
+  ]
+}
+```
+
+GitHub replaces whole lines, which constrains what a fix may contain:
+
+- `deletedRegion` must cover whole lines, i.e. specify only `startLine` and `endLine`, and must match the region of the result itself, which is what the comment
+  is anchored to.
+
+- `insertedContent.text` is the exact text replacing those lines, and should not end with a newline. It is never trimmed, so a trailing newline is rendered as a
+  trailing empty line.
+
+- An empty `insertedContent.text` renders as an empty suggestion, which deletes the lines. A replacement consisting of a single empty line is therefore
+  indistinguishable from a deletion, and cannot be expressed. A producer that needs one should widen the replacement to include a neighbouring line.
 
 ### Example With Custom Regex
 

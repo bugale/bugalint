@@ -11,6 +11,7 @@ describe('fullConversion', () => {
     ['yamllint', getKnownParser('yamllint'), '.'],
     ['ghalint', getKnownParser('ghalint'), '.'],
     ['sarif', getKnownParser('sarif'), '.'],
+    ['sariffix', getKnownParser('sarif'), '.'],
     ['flake8subpath', getKnownParser('flake8'), 'A\\B'],
     ['noissues', getKnownParser('flake8'), '.'],
     [
@@ -88,6 +89,37 @@ index 1111111..2222222 100644
         failOnIssues([{ path: 'A/B/test.py', line: 1 }], 'test', '.', diff)
       }).not.toThrow()
     })
+  })
+})
+
+describe('commentBody', () => {
+  const tag = '<!-- bugale/bugalint test -->'
+  const header = `${tag}\n**Message**\n[warning:test]`
+  const issue = { level: 'warning' as const, msg: 'Message' }
+  const body = (fix?: string): string => _testExports.buildCommentBody(tag, 'test', fix === undefined ? issue : { ...issue, fix })
+
+  it('omits the suggestion when the issue has no fix', () => {
+    expect(body()).toBe(header)
+  })
+
+  it('appends the suggestion after the identifier line', () => {
+    expect(body('x = 1')).toBe(`${header}\n\`\`\`suggestion\nx = 1\n\`\`\``)
+  })
+
+  it('keeps a multi line fix verbatim', () => {
+    expect(body('def f():\n    return 1')).toBe(`${header}\n\`\`\`suggestion\ndef f():\n    return 1\n\`\`\``)
+  })
+
+  it('renders an empty fix as an empty suggestion, which deletes the lines', () => {
+    expect(body('')).toBe(`${header}\n\`\`\`suggestion\n\`\`\``)
+  })
+
+  it('preserves a trailing newline, which keeps a trailing empty line', () => {
+    expect(body('x = 1\n')).toBe(`${header}\n\`\`\`suggestion\nx = 1\n\n\`\`\``)
+  })
+
+  it('uses a fence longer than the longest backtick run in the fix', () => {
+    expect(body('doc = "```"')).toBe(`${header}\n\`\`\`\`suggestion\ndoc = "\`\`\`"\n\`\`\`\``)
   })
 })
 
