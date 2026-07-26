@@ -1,0 +1,24 @@
+diff --git a/src/crlf.c b/src/crlf.c
+index 1111111..2222222 100644
+--- a/src/crlf.c
++++ b/src/crlf.c
+@@ -1,5 +1,5 @@
+ int main() {
+   int a = 0;
+-  int  b=1;
++  int b = 1;
+   return a + b;
+ }
+diff --git a/src/crlfmulti.c b/src/crlfmulti.c
+index 3333333..4444444 100644
+--- a/src/crlfmulti.c
++++ b/src/crlfmulti.c
+@@ -1,5 +1,6 @@
+ void g(void) {
+-  int x=0;
+-  int y=1;
++  int x = 0;
++  int y = 1;
+   use(x, y);
++  extra();
+ }

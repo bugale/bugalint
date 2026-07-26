@@ -1,0 +1,56 @@
+{
+  "version": "2.1.0",
+  "$schema": "http://json.schemastore.org/sarif-2.1.0-rtm.6",
+  "runs": [
+    {
+      "tool": { "driver": { "name": "test", "rules": [] } },
+      "results": [
+        {
+          "message": { "text": "Not formatted correctly" },
+          "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "src/crlf.c" }, "region": { "startLine": 3, "endLine": 3 } } }],
+          "fixes": [
+            {
+              "artifactChanges": [
+                {
+                  "artifactLocation": { "uri": "src/crlf.c" },
+                  "replacements": [{ "deletedRegion": { "startLine": 3, "endLine": 3 }, "insertedContent": { "text": "  int b = 1;\r" } }]
+                }
+              ]
+            }
+          ],
+          "level": "warning"
+        },
+        {
+          "message": { "text": "Not formatted correctly" },
+          "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "src/crlfmulti.c" }, "region": { "startLine": 2, "endLine": 3 } } }],
+          "fixes": [
+            {
+              "artifactChanges": [
+                {
+                  "artifactLocation": { "uri": "src/crlfmulti.c" },
+                  "replacements": [{ "deletedRegion": { "startLine": 2, "endLine": 3 }, "insertedContent": { "text": "  int x = 0;\r\n  int y = 1;\r" } }]
+                }
+              ]
+            }
+          ],
+          "level": "warning"
+        },
+        {
+          "message": { "text": "Not formatted correctly" },
+          "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "src/crlfmulti.c" }, "region": { "startLine": 4, "endLine": 4 } } }],
+          "fixes": [
+            {
+              "artifactChanges": [
+                {
+                  "artifactLocation": { "uri": "src/crlfmulti.c" },
+                  "replacements": [{ "deletedRegion": { "startLine": 4, "endLine": 4 }, "insertedContent": { "text": "  use(x, y);\r\n  extra();\r" } }]
+                }
+              ]
+            }
+          ],
+          "level": "warning"
+        }
+      ]
+    }
+  ]
+}

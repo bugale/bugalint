@@ -124,6 +124,9 @@ is ignored, so the last line of such a file is reported like any other.
 Note that a formatter that fails without writing anything produces an empty diff, which is indistinguishable from a formatter that found nothing to fix. The
 step running the formatter should therefore fail the job by itself.
 
+Unlike the other input formats, a diff is read byte for byte, since a carriage return in it may be content rather than a line terminator. A repository storing
+its files with CRLF therefore gets suggestions with CRLF in them, instead of suggestions that silently rewrite the line endings of every line they touch.
+
 #### Input Regex Named Groups
 
 When using a custom regular expression, it must contains named groups for Bugalint to successfully understand which parts of each line are the issue's
