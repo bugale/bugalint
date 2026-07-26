@@ -146,6 +146,26 @@
               ]
             }
           ]
+        },
+        {
+          "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "test.py" }, "region": { "startLine": 90, "endLine": 90 } } }],
+          "level": "warning",
+          "message": { "text": "Blanking a line rather than deleting it" },
+          "fixes": [
+            {
+              "artifactChanges": [
+                {
+                  "artifactLocation": { "uri": "test.py" },
+                  "replacements": [
+                    {
+                      "deletedRegion": { "startLine": 90, "startColumn": 1, "endLine": 91, "endColumn": 1 },
+                      "insertedContent": { "text": "\n" }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         }
       ]
     }
