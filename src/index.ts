@@ -27,6 +27,9 @@ function getParser(inputFormat: string, inputRegex: string, levelMap: string, me
 
 export async function run(): Promise<void> {
   try {
+    if (getInput('failOnlyNew') !== '') {
+      throw new Error('The `failOnlyNew` input was renamed to `onlyNew`, which now filters the SARIF, the log, the summary and the comments as well.')
+    }
     const inputFile: string = getInput('inputFile')
     const sarif: string = getInput('sarif')
     const comment: boolean = getBooleanInput('comment')

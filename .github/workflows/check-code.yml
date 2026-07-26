@@ -133,3 +133,30 @@ jobs:
           else
             echo "Success"
           fi
+  gha-renamed:
+    name: GitHub Action (renamed input)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Run Action
+        id: run
+        continue-on-error: true
+        uses: ./
+        with:
+          inputFile: '__tests__/noissues.input.txt'
+          toolName: 'test'
+          inputFormat: 'flake8'
+          failOnlyNew: 'true'
+      - name: Test Outcome
+        run: |
+          if [ "${{ steps.run.outcome }}" != "failure" ];
+          then
+            echo "Expected the action to reject the renamed input but it ended with ${{ steps.run.outcome }}"
+            exit 1
+          fi
+          if [ -f sarif.json ];
+          then
+            echo "Expected the action to reject the renamed input before writing any output"
+            exit 1
+          fi

@@ -54,6 +54,9 @@ steps:
   Note that this also removes the old issues from the SARIF, so uploading it to code scanning resolves their alerts. Leave it unset when the SARIF is uploaded
   and the alerts of the whole repository should be kept.
 
+  This input was named `failOnlyNew` before it applied to anything but the failure. Since GitHub silently ignores an input an action does not declare, the
+  action fails with an explanatory error when the old name is passed, rather than letting it look like it is still in effect.
+
 - `toolName`: _(required)_ The `tool name` that will be written in the SARIF output. This is used by both code scanning and auto-pr-commenting to resolve fixed
   issues.
 
