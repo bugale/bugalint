@@ -32270,7 +32270,8 @@ function getParser(inputFormat, inputRegex, levelMap, message) {
 async function run() {
     try {
         if ((0, core_1.getInput)('failOnlyNew') !== '') {
-            throw new Error('The `failOnlyNew` input was renamed to `onlyNew`, which now filters the SARIF, the log, the summary and the comments as well.');
+            throw new Error('The `failOnlyNew` input was renamed to `onlyNew`, which now filters the SARIF, the log, the summary and the comments, not only the failure. ' +
+                'Uploading a filtered SARIF to code scanning resolves the alerts of the unchanged code.');
         }
         const inputFile = (0, core_1.getInput)('inputFile');
         const sarif = (0, core_1.getInput)('sarif');

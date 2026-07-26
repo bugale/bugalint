@@ -28,7 +28,10 @@ function getParser(inputFormat: string, inputRegex: string, levelMap: string, me
 export async function run(): Promise<void> {
   try {
     if (getInput('failOnlyNew') !== '') {
-      throw new Error('The `failOnlyNew` input was renamed to `onlyNew`, which now filters the SARIF, the log, the summary and the comments as well.')
+      throw new Error(
+        'The `failOnlyNew` input was renamed to `onlyNew`, which now filters the SARIF, the log, the summary and the comments, not only the failure. ' +
+          'Uploading a filtered SARIF to code scanning resolves the alerts of the unchanged code.'
+      )
     }
     const inputFile: string = getInput('inputFile')
     const sarif: string = getInput('sarif')
