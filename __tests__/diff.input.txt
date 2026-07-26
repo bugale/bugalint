@@ -70,3 +70,12 @@ index ddddddd..eeeeeee 100644
 -  int  last=0;
 \ No newline at end of file
 +  int last = 0;
+diff --git a/src/blank.c b/src/blank.c
+index fffffff..ggggggg 100644
+--- a/src/blank.c
++++ b/src/blank.c
+@@ -60,3 +60,3 @@ void m(void) {
+   int a = 0;
+-    
++
+   return a;

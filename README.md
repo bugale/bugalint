@@ -119,7 +119,8 @@ Every contiguous run of changed lines becomes one issue, rather than every hunk,
 reported range. Issues are anchored on the lines of the old side of the diff, which are the lines of the committed file that the pull request shows and that
 comments can be attached to, while the new side becomes the fix. A run that only adds lines has no line of its own to anchor to, so it is extended to a
 neighbouring line, preferring the preceding one, whose content is repeated in the fix. The marker `git diff` prints for a file that does not end with a newline
-is ignored, so the last line of such a file is reported like any other.
+is ignored, so the last line of such a file is reported like any other. A run replacing lines with nothing deletes them, while one replacing them with an empty
+line blanks them, which is what a formatter stripping the whitespace of a blank line produces.
 
 Note that a formatter that fails without writing anything produces an empty diff, which is indistinguishable from a formatter that found nothing to fix. The
 step running the formatter should therefore fail the job by itself.
@@ -191,9 +192,11 @@ Any other `deletedRegion`, such as one replacing a part of a line or lines other
 ignored, and the issue is commented on without one.
 
 The text itself is never trimmed beyond the single line terminator described above, so an additional trailing newline is rendered as a trailing empty line.
-An empty `insertedContent.text` renders as an empty suggestion, which deletes the lines. A replacement consisting of a single empty line is written exactly the
-same way in either form, so it is indistinguishable from a deletion and cannot be expressed. A producer that needs one should widen the replacement to include
-a neighbouring line.
+An empty `insertedContent.text` renders as an empty suggestion, which deletes the lines, in both forms. Replacing the lines with a single empty line is
+therefore expressible only in the second form, as a text of exactly one newline — in the first form that same replacement is written as an empty text, which
+cannot be told apart from a deletion. A producer restricted to the first form should widen the replacement to include a neighbouring line.
+
+The fixes Bugalint writes out always use the second form, so a fix survives being read back from a SARIF file that Bugalint itself generated.
 
 ### Example With Custom Regex
 

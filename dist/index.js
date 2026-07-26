@@ -29987,6 +29987,12 @@ function* parsePylint(input) {
         };
     }
 }
+function splitFixText(text, terminated = false) {
+    return text === '' ? [] : (terminated ? text.replace(/\n$/, '') : text).split('\n');
+}
+function joinFixLines(fix) {
+    return fix.map((line) => `${line}\n`).join('');
+}
 function parseSarifFix(result, region) {
     const replacement = result.fixes?.[0]?.artifactChanges?.[0]?.replacements?.[0];
     const text = replacement?.insertedContent?.text;
@@ -29999,9 +30005,9 @@ function parseSarifFix(result, region) {
         return undefined;
     }
     if (deleted.endColumn == null) {
-        return (deleted.endLine ?? deleted.startLine) === endLine ? text : undefined;
+        return (deleted.endLine ?? deleted.startLine) === endLine ? splitFixText(text) : undefined;
     }
-    return deleted.endColumn === 1 && deleted.endLine === endLine + 1 ? text.replace(/\n$/, '') : undefined;
+    return deleted.endColumn === 1 && deleted.endLine === endLine + 1 ? splitFixText(text, true) : undefined;
 }
 function* parseSarif(input) {
     const log = JSON.parse(input);
@@ -30064,16 +30070,16 @@ function* parseFormatDiff(input, message) {
                 }
                 let location;
                 if (deleted.length > 0) {
-                    location = { line: deleted[0], eline: deleted[deleted.length - 1], fix: inserted.join('\n') };
+                    location = { line: deleted[0], eline: deleted[deleted.length - 1], fix: inserted };
                 }
                 else if (inserted.length > 0) {
                     const before = normalDiffLine(changes[start - 1]);
                     const after = normalDiffLine(changes[index]);
                     if (before != null) {
-                        location = { line: before.ln1, eline: before.ln1, fix: [before.content.slice(1), ...inserted].join('\n') };
+                        location = { line: before.ln1, eline: before.ln1, fix: [before.content.slice(1), ...inserted] };
                     }
                     else if (after != null) {
-                        location = { line: after.ln1, eline: after.ln1, fix: [...inserted, after.content.slice(1)].join('\n') };
+                        location = { line: after.ln1, eline: after.ln1, fix: [...inserted, after.content.slice(1)] };
                     }
                 }
                 else {
@@ -30141,7 +30147,12 @@ function generateSarif(issues, identifier, analysisPath) {
                         artifactChanges: [
                             {
                                 artifactLocation: { uri },
-                                replacements: [{ deletedRegion: { startLine: issue.line, endLine: issue.eline ?? issue.line }, insertedContent: { text: issue.fix } }]
+                                replacements: [
+                                    {
+                                        deletedRegion: { startLine: issue.line, startColumn: 1, endLine: (issue.eline ?? issue.line) + 1, endColumn: 1 },
+                                        insertedContent: { text: joinFixLines(issue.fix) }
+                                    }
+                                ]
                             }
                         ]
                     }
@@ -30176,8 +30187,8 @@ function buildCommentBody(commentTag, identifier, issue) {
     if (issue.fix == null) {
         return body;
     }
-    const fence = '`'.repeat(Math.max(3, ...Array.from(issue.fix.matchAll(/`+/g), (m) => m[0].length + 1)));
-    return `${body}\n${fence}suggestion\n${issue.fix === '' ? '' : `${issue.fix}\n`}${fence}`;
+    const fence = '`'.repeat(Math.max(3, ...Array.from(issue.fix.join('\n').matchAll(/`+/g), (m) => m[0].length + 1)));
+    return `${body}\n${fence}suggestion\n${joinFixLines(issue.fix)}${fence}`;
 }
 async function addComments(issues, prDiff, githubToken, identifier, owner, repo, prNumber, analysisPath) {
     /* eslint camelcase: ["error", {allow: ['^pull_number$', '^comment_id$', '^start_side$', '^start_line$']}] */

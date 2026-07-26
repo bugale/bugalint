@@ -13,7 +13,9 @@
               "artifactChanges": [
                 {
                   "artifactLocation": { "uri": "test.py" },
-                  "replacements": [{ "deletedRegion": { "startLine": 3, "endLine": 3 }, "insertedContent": { "text": "x = 1" } }]
+                  "replacements": [
+                    { "deletedRegion": { "startLine": 3, "startColumn": 1, "endLine": 4, "endColumn": 1 }, "insertedContent": { "text": "x = 1\n" } }
+                  ]
                 }
               ]
             }
@@ -30,7 +32,12 @@
               "artifactChanges": [
                 {
                   "artifactLocation": { "uri": "test.py" },
-                  "replacements": [{ "deletedRegion": { "startLine": 10, "endLine": 12 }, "insertedContent": { "text": "def f():\n    return 1" } }]
+                  "replacements": [
+                    {
+                      "deletedRegion": { "startLine": 10, "startColumn": 1, "endLine": 13, "endColumn": 1 },
+                      "insertedContent": { "text": "def f():\n    return 1\n" }
+                    }
+                  ]
                 }
               ]
             }
@@ -45,7 +52,7 @@
               "artifactChanges": [
                 {
                   "artifactLocation": { "uri": "test.py" },
-                  "replacements": [{ "deletedRegion": { "startLine": 20, "endLine": 21 }, "insertedContent": { "text": "" } }]
+                  "replacements": [{ "deletedRegion": { "startLine": 20, "startColumn": 1, "endLine": 22, "endColumn": 1 }, "insertedContent": { "text": "" } }]
                 }
               ]
             }
@@ -60,7 +67,9 @@
               "artifactChanges": [
                 {
                   "artifactLocation": { "uri": "test.py" },
-                  "replacements": [{ "deletedRegion": { "startLine": 30, "endLine": 30 }, "insertedContent": { "text": "doc = \"```\"" } }]
+                  "replacements": [
+                    { "deletedRegion": { "startLine": 30, "startColumn": 1, "endLine": 31, "endColumn": 1 }, "insertedContent": { "text": "doc = \"```\"\n" } }
+                  ]
                 }
               ]
             }
@@ -80,7 +89,9 @@
               "artifactChanges": [
                 {
                   "artifactLocation": { "uri": "test.py" },
-                  "replacements": [{ "deletedRegion": { "startLine": 50, "endLine": 51 }, "insertedContent": { "text": "a = 1\nb = 2" } }]
+                  "replacements": [
+                    { "deletedRegion": { "startLine": 50, "startColumn": 1, "endLine": 52, "endColumn": 1 }, "insertedContent": { "text": "a = 1\nb = 2\n" } }
+                  ]
                 }
               ]
             }
@@ -105,7 +116,9 @@
               "artifactChanges": [
                 {
                   "artifactLocation": { "uri": "test.py" },
-                  "replacements": [{ "deletedRegion": { "startLine": 80, "endLine": 80 }, "insertedContent": { "text": "z = 3\n" } }]
+                  "replacements": [
+                    { "deletedRegion": { "startLine": 80, "startColumn": 1, "endLine": 81, "endColumn": 1 }, "insertedContent": { "text": "z = 3\n\n" } }
+                  ]
                 }
               ]
             }

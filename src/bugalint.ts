@@ -15,7 +15,7 @@ interface Issue {
   col?: number
   eline?: number
   ecol?: number
-  fix?: string
+  fix?: string[]
 }
 
 export type Parser = (input: string) => Generator<Issue>
@@ -60,7 +60,15 @@ function* parsePylint(input: string): Generator<Issue> {
   }
 }
 
-function parseSarifFix(result: Result, region?: Region): string | undefined {
+function splitFixText(text: string, terminated = false): string[] {
+  return text === '' ? [] : (terminated ? text.replace(/\n$/, '') : text).split('\n')
+}
+
+function joinFixLines(fix: string[]): string {
+  return fix.map((line) => `${line}\n`).join('')
+}
+
+function parseSarifFix(result: Result, region?: Region): string[] | undefined {
   const replacement = result.fixes?.[0]?.artifactChanges?.[0]?.replacements?.[0]
   const text = replacement?.insertedContent?.text
   if (replacement == null || text == null || region?.startLine == null) {
@@ -72,9 +80,9 @@ function parseSarifFix(result: Result, region?: Region): string | undefined {
     return undefined
   }
   if (deleted.endColumn == null) {
-    return (deleted.endLine ?? deleted.startLine) === endLine ? text : undefined
+    return (deleted.endLine ?? deleted.startLine) === endLine ? splitFixText(text) : undefined
   }
-  return deleted.endColumn === 1 && deleted.endLine === endLine + 1 ? text.replace(/\n$/, '') : undefined
+  return deleted.endColumn === 1 && deleted.endLine === endLine + 1 ? splitFixText(text, true) : undefined
 }
 
 function* parseSarif(input: string): Generator<Issue> {
@@ -142,14 +150,14 @@ function* parseFormatDiff(input: string, message: string): Generator<Issue> {
         }
         let location: Pick<Issue, 'line' | 'eline' | 'fix'> | undefined
         if (deleted.length > 0) {
-          location = { line: deleted[0], eline: deleted[deleted.length - 1], fix: inserted.join('\n') }
+          location = { line: deleted[0], eline: deleted[deleted.length - 1], fix: inserted }
         } else if (inserted.length > 0) {
           const before = normalDiffLine(changes[start - 1])
           const after = normalDiffLine(changes[index])
           if (before != null) {
-            location = { line: before.ln1, eline: before.ln1, fix: [before.content.slice(1), ...inserted].join('\n') }
+            location = { line: before.ln1, eline: before.ln1, fix: [before.content.slice(1), ...inserted] }
           } else if (after != null) {
-            location = { line: after.ln1, eline: after.ln1, fix: [...inserted, after.content.slice(1)].join('\n') }
+            location = { line: after.ln1, eline: after.ln1, fix: [...inserted, after.content.slice(1)] }
           }
         } else {
           index++
@@ -227,7 +235,12 @@ export function generateSarif(issues: Iterable<Issue>, identifier: string, analy
                 artifactChanges: [
                   {
                     artifactLocation: { uri },
-                    replacements: [{ deletedRegion: { startLine: issue.line, endLine: issue.eline ?? issue.line }, insertedContent: { text: issue.fix } }]
+                    replacements: [
+                      {
+                        deletedRegion: { startLine: issue.line, startColumn: 1, endLine: (issue.eline ?? issue.line) + 1, endColumn: 1 },
+                        insertedContent: { text: joinFixLines(issue.fix) }
+                      }
+                    ]
                   }
                 ]
               }
@@ -266,8 +279,8 @@ function buildCommentBody(commentTag: string, identifier: string, issue: Issue):
   if (issue.fix == null) {
     return body
   }
-  const fence = '`'.repeat(Math.max(3, ...Array.from(issue.fix.matchAll(/`+/g), (m) => m[0].length + 1)))
-  return `${body}\n${fence}suggestion\n${issue.fix === '' ? '' : `${issue.fix}\n`}${fence}`
+  const fence = '`'.repeat(Math.max(3, ...Array.from(issue.fix.join('\n').matchAll(/`+/g), (m) => m[0].length + 1)))
+  return `${body}\n${fence}suggestion\n${joinFixLines(issue.fix)}${fence}`
 }
 
 export async function addComments(

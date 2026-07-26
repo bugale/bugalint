@@ -121,35 +121,39 @@ describe('commentBody', () => {
   const tag = '<!-- bugale/bugalint test -->'
   const header = `${tag}\n**Message**\n[warning:test]`
   const issue = { level: 'warning' as const, msg: 'Message' }
-  const body = (fix?: string): string => _testExports.buildCommentBody(tag, 'test', fix === undefined ? issue : { ...issue, fix })
+  const body = (fix?: string[]): string => _testExports.buildCommentBody(tag, 'test', fix === undefined ? issue : { ...issue, fix })
 
   it('omits the suggestion when the issue has no fix', () => {
     expect(body()).toBe(header)
   })
 
   it('appends the suggestion after the identifier line', () => {
-    expect(body('x = 1')).toBe(`${header}\n\`\`\`suggestion\nx = 1\n\`\`\``)
+    expect(body(['x = 1'])).toBe(`${header}\n\`\`\`suggestion\nx = 1\n\`\`\``)
   })
 
   it('keeps a multi line fix verbatim', () => {
-    expect(body('def f():\n    return 1')).toBe(`${header}\n\`\`\`suggestion\ndef f():\n    return 1\n\`\`\``)
+    expect(body(['def f():', '    return 1'])).toBe(`${header}\n\`\`\`suggestion\ndef f():\n    return 1\n\`\`\``)
   })
 
-  it('renders an empty fix as an empty suggestion, which deletes the lines', () => {
-    expect(body('')).toBe(`${header}\n\`\`\`suggestion\n\`\`\``)
+  it('renders a fix with no lines as an empty suggestion, which deletes the lines', () => {
+    expect(body([])).toBe(`${header}\n\`\`\`suggestion\n\`\`\``)
   })
 
-  it('preserves a trailing newline, which keeps a trailing empty line', () => {
-    expect(body('x = 1\n')).toBe(`${header}\n\`\`\`suggestion\nx = 1\n\n\`\`\``)
+  it('renders a single empty line as a suggestion blanking the lines, not deleting them', () => {
+    expect(body([''])).toBe(`${header}\n\`\`\`suggestion\n\n\`\`\``)
+  })
+
+  it('preserves a trailing empty line', () => {
+    expect(body(['x = 1', ''])).toBe(`${header}\n\`\`\`suggestion\nx = 1\n\n\`\`\``)
   })
 
   it('uses a fence longer than the longest backtick run in the fix', () => {
-    expect(body('doc = "```"')).toBe(`${header}\n\`\`\`\`suggestion\ndoc = "\`\`\`"\n\`\`\`\``)
+    expect(body(['doc = "```"'])).toBe(`${header}\n\`\`\`\`suggestion\ndoc = "\`\`\`"\n\`\`\`\``)
   })
 })
 
 describe('sarifFix', () => {
-  const fixOf = (region: Region, deletedRegion: Region, text: string): string | undefined => {
+  const fixOf = (region: Region, deletedRegion: Region, text: string): string[] | undefined => {
     const log = {
       version: '2.1.0',
       runs: [
@@ -169,18 +173,27 @@ describe('sarifFix', () => {
   }
 
   it('takes the text of a region ending at the end of the last reported line', () => {
-    expect(fixOf({ startLine: 3, endLine: 4 }, { startLine: 3, endLine: 4 }, 'a\nb')).toBe('a\nb')
-    expect(fixOf({ startLine: 3 }, { startLine: 3 }, 'a')).toBe('a')
+    expect(fixOf({ startLine: 3, endLine: 4 }, { startLine: 3, endLine: 4 }, 'a\nb')).toStrictEqual(['a', 'b'])
+    expect(fixOf({ startLine: 3 }, { startLine: 3 }, 'a')).toStrictEqual(['a'])
   })
 
   it('drops the line terminator of a region ending at the beginning of the following line', () => {
-    expect(fixOf({ startLine: 3, endLine: 4 }, { startLine: 3, startColumn: 1, endLine: 5, endColumn: 1 }, 'a\nb\n')).toBe('a\nb')
-    expect(fixOf({ startLine: 3 }, { startLine: 3, startColumn: 1, endLine: 4, endColumn: 1 }, 'a\n')).toBe('a')
+    expect(fixOf({ startLine: 3, endLine: 4 }, { startLine: 3, startColumn: 1, endLine: 5, endColumn: 1 }, 'a\nb\n')).toStrictEqual(['a', 'b'])
+    expect(fixOf({ startLine: 3 }, { startLine: 3, startColumn: 1, endLine: 4, endColumn: 1 }, 'a\n')).toStrictEqual(['a'])
   })
 
   it('keeps a trailing empty line of both forms', () => {
-    expect(fixOf({ startLine: 3, endLine: 4 }, { startLine: 3, endLine: 4 }, 'a\nb\n')).toBe('a\nb\n')
-    expect(fixOf({ startLine: 3, endLine: 4 }, { startLine: 3, startColumn: 1, endLine: 5, endColumn: 1 }, 'a\nb\n\n')).toBe('a\nb\n')
+    expect(fixOf({ startLine: 3, endLine: 4 }, { startLine: 3, endLine: 4 }, 'a\nb\n')).toStrictEqual(['a', 'b', ''])
+    expect(fixOf({ startLine: 3, endLine: 4 }, { startLine: 3, startColumn: 1, endLine: 5, endColumn: 1 }, 'a\nb\n\n')).toStrictEqual(['a', 'b', ''])
+  })
+
+  it('reads an empty text as a deletion in both forms', () => {
+    expect(fixOf({ startLine: 3 }, { startLine: 3 }, '')).toStrictEqual([])
+    expect(fixOf({ startLine: 3 }, { startLine: 3, startColumn: 1, endLine: 4, endColumn: 1 }, '')).toStrictEqual([])
+  })
+
+  it('reads a lone terminator as a single empty line, which only the second form can express', () => {
+    expect(fixOf({ startLine: 3 }, { startLine: 3, startColumn: 1, endLine: 4, endColumn: 1 }, '\n')).toStrictEqual([''])
   })
 
   it('ignores a fix replacing a part of a line', () => {
@@ -219,14 +232,22 @@ describe('diffFormat', () => {
       '+int b = 1, c = 2;',
       ' return a;'
     ]
-    expect(firstIssue(lines)).toMatchObject({ path: 'a.c', line: 11, eline: 12, fix: 'int b = 1, c = 2;' })
+    expect(firstIssue(lines)).toMatchObject({ path: 'a.c', line: 11, eline: 12, fix: ['int b = 1, c = 2;'] })
   })
 
-  it('reports a deletion as an empty fix', () => {
+  it('reports a deletion as a fix with no lines', () => {
     expect(firstIssue(['diff --git a/a.c b/a.c', '--- a/a.c', '+++ b/a.c', '@@ -5,3 +5,2 @@', ' int a = 0;', '-', ' return a;'])).toMatchObject({
       line: 6,
       eline: 6,
-      fix: ''
+      fix: []
+    })
+  })
+
+  it('distinguishes blanking a line from deleting it', () => {
+    expect(firstIssue(['diff --git a/a.c b/a.c', '--- a/a.c', '+++ b/a.c', '@@ -5,3 +5,3 @@', ' int a = 0;', '-    ', '+', ' return a;'])).toMatchObject({
+      line: 6,
+      eline: 6,
+      fix: ['']
     })
   })
 
@@ -234,7 +255,7 @@ describe('diffFormat', () => {
     expect(firstIssue(['diff --git a/a.c b/a.c', '--- a/a.c', '+++ b/a.c', '@@ -4,2 +4,3 @@', ' int a = 0;', '+int b = 1;', ' return a;'])).toMatchObject({
       line: 4,
       eline: 4,
-      fix: 'int a = 0;\nint b = 1;'
+      fix: ['int a = 0;', 'int b = 1;']
     })
   })
 
@@ -242,21 +263,21 @@ describe('diffFormat', () => {
     expect(firstIssue(['diff --git a/a.c b/a.c', '--- a/a.c', '+++ b/a.c', '@@ -1,2 +1,3 @@', '+// header', ' int a = 0;', ' return a;'])).toMatchObject({
       line: 1,
       eline: 1,
-      fix: '// header\nint a = 0;'
+      fix: ['// header', 'int a = 0;']
     })
   })
 
   it('ignores the marker of a file not ending with a newline', () => {
-    expect(firstIssue([...header, '-int  a=0;', '\\ No newline at end of file', '+int a = 0;'])).toMatchObject({ line: 1, eline: 1, fix: 'int a = 0;' })
+    expect(firstIssue([...header, '-int  a=0;', '\\ No newline at end of file', '+int a = 0;'])).toMatchObject({ line: 1, eline: 1, fix: ['int a = 0;'] })
   })
 
   it('keeps carriage returns that are part of the content', () => {
-    expect(firstIssue([...header, '-int  a=0;\r', '+int a = 0;\r'])).toMatchObject({ fix: 'int a = 0;\r' })
+    expect(firstIssue([...header, '-int  a=0;\r', '+int a = 0;\r'])).toMatchObject({ fix: ['int a = 0;\r'] })
   })
 
   it('strips the carriage returns of a diff whose own lines are terminated by them', () => {
-    expect(firstIssue([...header, '-int  a=0;', '+int a = 0;'], '\r\n')).toMatchObject({ fix: 'int a = 0;' })
-    expect(firstIssue([...header, '-int  a=0;\r', '+int a = 0;\r'], '\r\n')).toMatchObject({ fix: 'int a = 0;\r' })
+    expect(firstIssue([...header, '-int  a=0;', '+int a = 0;'], '\r\n')).toMatchObject({ fix: ['int a = 0;'] })
+    expect(firstIssue([...header, '-int  a=0;\r', '+int a = 0;\r'], '\r\n')).toMatchObject({ fix: ['int a = 0;\r'] })
   })
 })
 

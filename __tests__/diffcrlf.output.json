@@ -13,7 +13,9 @@
               "artifactChanges": [
                 {
                   "artifactLocation": { "uri": "src/crlf.c" },
-                  "replacements": [{ "deletedRegion": { "startLine": 3, "endLine": 3 }, "insertedContent": { "text": "  int b = 1;\r" } }]
+                  "replacements": [
+                    { "deletedRegion": { "startLine": 3, "startColumn": 1, "endLine": 4, "endColumn": 1 }, "insertedContent": { "text": "  int b = 1;\r\n" } }
+                  ]
                 }
               ]
             }
@@ -28,7 +30,12 @@
               "artifactChanges": [
                 {
                   "artifactLocation": { "uri": "src/crlfmulti.c" },
-                  "replacements": [{ "deletedRegion": { "startLine": 2, "endLine": 3 }, "insertedContent": { "text": "  int x = 0;\r\n  int y = 1;\r" } }]
+                  "replacements": [
+                    {
+                      "deletedRegion": { "startLine": 2, "startColumn": 1, "endLine": 4, "endColumn": 1 },
+                      "insertedContent": { "text": "  int x = 0;\r\n  int y = 1;\r\n" }
+                    }
+                  ]
                 }
               ]
             }
@@ -43,7 +50,12 @@
               "artifactChanges": [
                 {
                   "artifactLocation": { "uri": "src/crlfmulti.c" },
-                  "replacements": [{ "deletedRegion": { "startLine": 4, "endLine": 4 }, "insertedContent": { "text": "  use(x, y);\r\n  extra();\r" } }]
+                  "replacements": [
+                    {
+                      "deletedRegion": { "startLine": 4, "startColumn": 1, "endLine": 5, "endColumn": 1 },
+                      "insertedContent": { "text": "  use(x, y);\r\n  extra();\r\n" }
+                    }
+                  ]
                 }
               ]
             }

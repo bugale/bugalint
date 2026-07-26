@@ -13,7 +13,9 @@
               "artifactChanges": [
                 {
                   "artifactLocation": { "uri": "src/single.c" },
-                  "replacements": [{ "deletedRegion": { "startLine": 3, "endLine": 3 }, "insertedContent": { "text": "  int b = 1;" } }]
+                  "replacements": [
+                    { "deletedRegion": { "startLine": 3, "startColumn": 1, "endLine": 4, "endColumn": 1 }, "insertedContent": { "text": "  int b = 1;\n" } }
+                  ]
                 }
               ]
             }
@@ -28,7 +30,12 @@
               "artifactChanges": [
                 {
                   "artifactLocation": { "uri": "src/multi.c" },
-                  "replacements": [{ "deletedRegion": { "startLine": 9, "endLine": 12 }, "insertedContent": { "text": "  if (x) {\n    f();\n  }" } }]
+                  "replacements": [
+                    {
+                      "deletedRegion": { "startLine": 9, "startColumn": 1, "endLine": 13, "endColumn": 1 },
+                      "insertedContent": { "text": "  if (x) {\n    f();\n  }\n" }
+                    }
+                  ]
                 }
               ]
             }
@@ -43,7 +50,7 @@
               "artifactChanges": [
                 {
                   "artifactLocation": { "uri": "src/deletion.c" },
-                  "replacements": [{ "deletedRegion": { "startLine": 19, "endLine": 20 }, "insertedContent": { "text": "" } }]
+                  "replacements": [{ "deletedRegion": { "startLine": 19, "startColumn": 1, "endLine": 21, "endColumn": 1 }, "insertedContent": { "text": "" } }]
                 }
               ]
             }
@@ -58,7 +65,9 @@
               "artifactChanges": [
                 {
                   "artifactLocation": { "uri": "src/insertion.c" },
-                  "replacements": [{ "deletedRegion": { "startLine": 31, "endLine": 31 }, "insertedContent": { "text": "  int w = 1;\n" } }]
+                  "replacements": [
+                    { "deletedRegion": { "startLine": 31, "startColumn": 1, "endLine": 32, "endColumn": 1 }, "insertedContent": { "text": "  int w = 1;\n\n" } }
+                  ]
                 }
               ]
             }
@@ -74,7 +83,10 @@
                 {
                   "artifactLocation": { "uri": "src/top.c" },
                   "replacements": [
-                    { "deletedRegion": { "startLine": 1, "endLine": 1 }, "insertedContent": { "text": "// clang-format off\n#include <stdio.h>" } }
+                    {
+                      "deletedRegion": { "startLine": 1, "startColumn": 1, "endLine": 2, "endColumn": 1 },
+                      "insertedContent": { "text": "// clang-format off\n#include <stdio.h>\n" }
+                    }
                   ]
                 }
               ]
@@ -90,7 +102,12 @@
               "artifactChanges": [
                 {
                   "artifactLocation": { "uri": "src/fence.c" },
-                  "replacements": [{ "deletedRegion": { "startLine": 40, "endLine": 40 }, "insertedContent": { "text": "  const char *doc = \"```\";" } }]
+                  "replacements": [
+                    {
+                      "deletedRegion": { "startLine": 40, "startColumn": 1, "endLine": 41, "endColumn": 1 },
+                      "insertedContent": { "text": "  const char *doc = \"```\";\n" }
+                    }
+                  ]
                 }
               ]
             }
@@ -105,7 +122,29 @@
               "artifactChanges": [
                 {
                   "artifactLocation": { "uri": "src/eof.c" },
-                  "replacements": [{ "deletedRegion": { "startLine": 50, "endLine": 50 }, "insertedContent": { "text": "  int last = 0;" } }]
+                  "replacements": [
+                    {
+                      "deletedRegion": { "startLine": 50, "startColumn": 1, "endLine": 51, "endColumn": 1 },
+                      "insertedContent": { "text": "  int last = 0;\n" }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "level": "warning"
+        },
+        {
+          "message": { "text": "Not formatted correctly" },
+          "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "src/blank.c" }, "region": { "startLine": 61, "endLine": 61 } } }],
+          "fixes": [
+            {
+              "artifactChanges": [
+                {
+                  "artifactLocation": { "uri": "src/blank.c" },
+                  "replacements": [
+                    { "deletedRegion": { "startLine": 61, "startColumn": 1, "endLine": 62, "endColumn": 1 }, "insertedContent": { "text": "\n" } }
+                  ]
                 }
               ]
             }
