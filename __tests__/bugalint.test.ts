@@ -10,6 +10,7 @@ import {
   isNewIssue,
   isCommentableIssue,
   failOnIssues,
+  filterNewIssues,
   _testExports,
   type Parser
 } from '../src/bugalint'
@@ -84,30 +85,34 @@ index 1111111..2222222 100644
   describe('failOnIssues', () => {
     it('does nothing when no issues are found', () => {
       expect(() => {
-        failOnIssues([], 'test', '.')
+        failOnIssues([], 'test')
       }).not.toThrow()
     })
 
     it('throws when issues are found', () => {
       expect(() => {
-        failOnIssues([{ path: 'a.py', line: 1 }, { msg: 'x' }], 'test', '.')
+        failOnIssues([{ path: 'a.py', line: 1 }, { msg: 'x' }], 'test')
       }).toThrow('test found 2 issues')
     })
+  })
 
-    it('throws only on new issues when a diff is given', () => {
+  describe('filterNewIssues', () => {
+    it('keeps only the issues overlapping an added line', () => {
       const issues = [
         { path: 'A/B/test.py', line: 1 },
-        { path: 'A/B/test.py', line: 2 }
+        { path: 'A/B/test.py', line: 2 },
+        { path: 'A/B/test.py', line: 1, eline: 2 },
+        { path: 'A/B/other.py', line: 2 }
       ]
-      expect(() => {
-        failOnIssues(issues, 'test', '.', diff)
-      }).toThrow('test found 1 issues')
+      expect(filterNewIssues(issues, diff, '.')).toStrictEqual([issues[1], issues[2]])
     })
 
-    it('does nothing when a diff is given and all issues are old', () => {
-      expect(() => {
-        failOnIssues([{ path: 'A/B/test.py', line: 1 }], 'test', '.', diff)
-      }).not.toThrow()
+    it('keeps nothing when all issues are old', () => {
+      expect(filterNewIssues([{ path: 'A/B/test.py', line: 1 }], diff, '.')).toStrictEqual([])
+    })
+
+    it('relativizes the issue paths to the analysis path', () => {
+      expect(filterNewIssues([{ path: 'test.py', line: 3 }], diff, 'A\\B')).toHaveLength(1)
     })
   })
 })

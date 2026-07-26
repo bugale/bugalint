@@ -46,9 +46,13 @@ steps:
 
 - `fail`: True by default - fails the step if the linter found any issues. If set to false, the action will not fail the step.
 
-- `failOnlyNew`: Set to true to fail only on issues found on lines added in the pull request (requires running on a pull request). If set to false or
-  omitted, the action will fail on any issue. Ignored if `fail` is set to false. An issue spanning several lines is considered new if any one of them was
-  added, since fixing such an issue usually requires changing the lines around it as well.
+- `onlyNew`: Set to true to ignore every issue that is not on a line added in the pull request (requires running on a pull request). The issues are filtered
+  before anything else happens, so the SARIF file, the workflow log, the summary, the comments and the step's success or failure all reflect only the new
+  issues. If set to false or omitted, the action considers every issue. An issue spanning several lines is considered new if any one of them was added, since
+  fixing such an issue usually requires changing the lines around it as well.
+
+  Note that this also removes the old issues from the SARIF, so uploading it to code scanning resolves their alerts. Leave it unset when the SARIF is uploaded
+  and the alerts of the whole repository should be kept.
 
 - `toolName`: _(required)_ The `tool name` that will be written in the SARIF output. This is used by both code scanning and auto-pr-commenting to resolve fixed
   issues.

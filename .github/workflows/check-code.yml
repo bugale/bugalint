@@ -86,7 +86,8 @@ jobs:
           - {linter: 'noissues', format: 'flake8', regex: '', levelMap: '', analysisPath: '.', outcome: 'success'}
           - {linter: 'noissues', format: 'flake8', regex: '', levelMap: '', analysisPath: '.', fail: 'false', outcome: 'success', name: 'noissues-nofail'}
           - {linter: 'pylint', format: 'pylint', regex: '', levelMap: '', analysisPath: '.', fail: 'false', outcome: 'success', name: 'pylint-nofail'}
-          - {linter: 'pylint', format: 'pylint', regex: '', levelMap: '', analysisPath: '.', failOnlyNew: 'true', outcome: 'success', name: 'pylint-onlynew'}
+          # yamllint disable-line rule:line-length
+          - {linter: 'pylint', format: 'pylint', regex: '', levelMap: '', analysisPath: '.', onlyNew: 'true', output: 'noissues', outcome: 'success', name: 'pylint-onlynew'}
           - linter: 'custom'
             format: ''
             # yamllint disable-line rule:line-length
@@ -111,7 +112,7 @@ jobs:
           levelMap: ${{ matrix.run.levelMap }}
           analysisPath: ${{ matrix.run.analysisPath }}
           fail: ${{ matrix.run.fail || 'true' }}
-          failOnlyNew: ${{ matrix.run.failOnlyNew || 'false' }}
+          onlyNew: ${{ matrix.run.onlyNew || 'false' }}
       - name: Test Outcome
         run: |
           if [ "${{ steps.run.outcome }}" != "${{ matrix.run.outcome || 'failure' }}" ];
@@ -120,7 +121,7 @@ jobs:
             exit 1
           fi
       - name: Create Diff
-        run: json-diff "__tests__/${{ matrix.run.linter }}.output.json" "sarif.json" | tee diff.txt
+        run: json-diff "__tests__/${{ matrix.run.output || matrix.run.linter }}.output.json" "sarif.json" | tee diff.txt
       - name: Test Output
         run: |
           if [ -s diff.txt ];

@@ -2,7 +2,18 @@ import { readFileSync, writeFileSync } from 'fs'
 import type { Result } from 'sarif'
 import { context } from '@actions/github'
 import { getInput, getBooleanInput, debug, info, setFailed } from '@actions/core'
-import { generateSarif, getKnownParser, getRegexParser, getDiffParser, getPrDiff, addComments, createSummary, failOnIssues, type Parser } from '../src/bugalint'
+import {
+  generateSarif,
+  getKnownParser,
+  getRegexParser,
+  getDiffParser,
+  getPrDiff,
+  addComments,
+  createSummary,
+  failOnIssues,
+  filterNewIssues,
+  type Parser
+} from '../src/bugalint'
 
 function getParser(inputFormat: string, inputRegex: string, levelMap: string, message: string): Parser {
   if (inputFormat === '') {
@@ -21,7 +32,7 @@ export async function run(): Promise<void> {
     const comment: boolean = getBooleanInput('comment')
     const summary: boolean = getBooleanInput('summary')
     const fail: boolean = getBooleanInput('fail')
-    const failOnlyNew: boolean = getBooleanInput('failOnlyNew')
+    const onlyNew: boolean = getBooleanInput('onlyNew')
     const toolName: string = getInput('toolName')
     const inputFormat: string = getInput('inputFormat')
     const inputRegex: string = getInput('inputRegex')
@@ -34,27 +45,35 @@ export async function run(): Promise<void> {
     const raw = readFileSync(inputFile, 'utf-8')
     const input = inputFormat === 'diff' ? raw : raw.replace(/\r/g, '')
     debug(`input: ${input}`)
-    const output = generateSarif(parser(input), toolName, analysisPath)
-    info(`SARIF output: ${JSON.stringify(output, null, 2)}`)
-    if (sarif !== '') {
-      writeFileSync(sarif, JSON.stringify(output))
-    }
+
+    const prNumber = context.payload.pull_request?.number
+    let issues = [...parser(input)]
     let prDiff: string | undefined
-    if (comment || (fail && failOnlyNew)) {
-      const prNumber = context.payload.pull_request?.number
+    if (onlyNew) {
       if (prNumber == null) {
         throw new Error('No pull request number found.')
       }
       prDiff = await getPrDiff(githubToken, context.repo.owner, context.repo.repo, prNumber)
-      if (comment) {
-        await addComments(parser(input), prDiff, githubToken, toolName, context.repo.owner, context.repo.repo, prNumber, analysisPath)
+      issues = filterNewIssues(issues, prDiff, analysisPath)
+    }
+
+    const output = generateSarif(issues, toolName, analysisPath)
+    info(`SARIF output: ${JSON.stringify(output, null, 2)}`)
+    if (sarif !== '') {
+      writeFileSync(sarif, JSON.stringify(output))
+    }
+    if (comment) {
+      if (prNumber == null) {
+        throw new Error('No pull request number found.')
       }
+      prDiff ??= await getPrDiff(githubToken, context.repo.owner, context.repo.repo, prNumber)
+      await addComments(issues, prDiff, githubToken, toolName, context.repo.owner, context.repo.repo, prNumber, analysisPath)
     }
     if (summary) {
-      await createSummary(parser(input), toolName, analysisPath)
+      await createSummary(issues, toolName, analysisPath)
     }
     if (fail) {
-      failOnIssues(parser(input), toolName, analysisPath, failOnlyNew ? prDiff : undefined)
+      failOnIssues(issues, toolName)
     }
   } catch (error) {
     if (error instanceof Error) {
