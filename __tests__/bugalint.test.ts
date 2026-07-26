@@ -5,6 +5,7 @@ import {
   generateSarif,
   getKnownParser,
   getRegexParser,
+  getDiffParser,
   parseDiffLines,
   isNewIssue,
   isCommentableIssue,
@@ -23,6 +24,7 @@ describe('fullConversion', () => {
     ['ghalint', getKnownParser('ghalint'), '.'],
     ['sarif', getKnownParser('sarif'), '.'],
     ['sariffix', getKnownParser('sarif'), '.'],
+    ['diff', getKnownParser('diff'), '.'],
     ['flake8subpath', getKnownParser('flake8'), 'A\\B'],
     ['noissues', getKnownParser('flake8'), '.'],
     [
@@ -185,6 +187,71 @@ describe('sarifFix', () => {
     expect(fixOf({ startLine: 3 }, { startLine: 3, endLine: 4 }, 'a')).toBeUndefined()
     expect(fixOf({ startLine: 3 }, { startLine: 4 }, 'a')).toBeUndefined()
     expect(fixOf({ startLine: 3, endLine: 4 }, { startLine: 3, startColumn: 1, endLine: 4, endColumn: 1 }, 'a\n')).toBeUndefined()
+  })
+})
+
+describe('diffFormat', () => {
+  const diffOf = (lines: string[], terminator = '\n'): string => lines.map((line) => `${line}${terminator}`).join('')
+  const header = ['diff --git a/a.c b/a.c', 'index 1111111..2222222 100644', '--- a/a.c', '+++ b/a.c', '@@ -1,1 +1,1 @@']
+  const firstIssue = (lines: string[], terminator = '\n'): unknown => [...getKnownParser('diff')(diffOf(lines, terminator))][0]
+
+  it('uses the configured message, falling back to a generic one', () => {
+    const input = diffOf([...header, '-int  a=0;', '+int a = 0;'])
+    expect([...getDiffParser('Run clang-format')(input)][0].msg).toBe('Run clang-format')
+    expect([...getDiffParser('')(input)][0].msg).toBe('Not formatted correctly')
+    expect([...getKnownParser('diff')(input)][0].msg).toBe('Not formatted correctly')
+  })
+
+  it('anchors on the lines of the old side of the diff', () => {
+    const lines = [
+      'diff --git a/a.c b/a.c',
+      '--- a/a.c',
+      '+++ b/a.c',
+      '@@ -10,4 +2,3 @@',
+      ' int a = 0;',
+      '-int  b=1;',
+      '-int  c=2;',
+      '+int b = 1, c = 2;',
+      ' return a;'
+    ]
+    expect(firstIssue(lines)).toMatchObject({ path: 'a.c', line: 11, eline: 12, fix: 'int b = 1, c = 2;' })
+  })
+
+  it('reports a deletion as an empty fix', () => {
+    expect(firstIssue(['diff --git a/a.c b/a.c', '--- a/a.c', '+++ b/a.c', '@@ -5,3 +5,2 @@', ' int a = 0;', '-', ' return a;'])).toMatchObject({
+      line: 6,
+      eline: 6,
+      fix: ''
+    })
+  })
+
+  it('extends an insertion to the preceding line', () => {
+    expect(firstIssue(['diff --git a/a.c b/a.c', '--- a/a.c', '+++ b/a.c', '@@ -4,2 +4,3 @@', ' int a = 0;', '+int b = 1;', ' return a;'])).toMatchObject({
+      line: 4,
+      eline: 4,
+      fix: 'int a = 0;\nint b = 1;'
+    })
+  })
+
+  it('extends an insertion at the top of a file to the following line', () => {
+    expect(firstIssue(['diff --git a/a.c b/a.c', '--- a/a.c', '+++ b/a.c', '@@ -1,2 +1,3 @@', '+// header', ' int a = 0;', ' return a;'])).toMatchObject({
+      line: 1,
+      eline: 1,
+      fix: '// header\nint a = 0;'
+    })
+  })
+
+  it('ignores the marker of a file not ending with a newline', () => {
+    expect(firstIssue([...header, '-int  a=0;', '\\ No newline at end of file', '+int a = 0;'])).toMatchObject({ line: 1, eline: 1, fix: 'int a = 0;' })
+  })
+
+  it('keeps carriage returns that are part of the content', () => {
+    expect(firstIssue([...header, '-int  a=0;\r', '+int a = 0;\r'])).toMatchObject({ fix: 'int a = 0;\r' })
+  })
+
+  it('strips the carriage returns of a diff whose own lines are terminated by them', () => {
+    expect(firstIssue([...header, '-int  a=0;', '+int a = 0;'], '\r\n')).toMatchObject({ fix: 'int a = 0;' })
+    expect(firstIssue([...header, '-int  a=0;\r', '+int a = 0;\r'], '\r\n')).toMatchObject({ fix: 'int a = 0;\r' })
   })
 })
 

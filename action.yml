@@ -44,6 +44,10 @@ inputs:
     description: "The path at which the analysis took place relative to the repository's root. Used to relativize any paths to the repository root path."
     required: false
     default: '.'
+  message:
+    description: 'Message of the issues found by formats that do not carry one, such as diff'
+    required: false
+    default: 'Not formatted correctly'
   githubToken:
     description: 'Github token of the repository (automatically created by Github)'
     default: ${{ github.token }}

@@ -1,0 +1,72 @@
+diff --git a/src/single.c b/src/single.c
+index 1111111..2222222 100644
+--- a/src/single.c
++++ b/src/single.c
+@@ -1,5 +1,5 @@
+ int main() {
+   int a = 0;
+-  int  b=1;
++  int b = 1;
+   return a + b;
+ }
+diff --git a/src/multi.c b/src/multi.c
+index 3333333..4444444 100644
+--- a/src/multi.c
++++ b/src/multi.c
+@@ -8,7 +8,6 @@ void g(void) {
+   int x = 0;
+-  if (x)
+-  {
+-    f(  );
+-  }
++  if (x) {
++    f();
++  }
+   return;
+ }
+diff --git a/src/deletion.c b/src/deletion.c
+index 5555555..6666666 100644
+--- a/src/deletion.c
++++ b/src/deletion.c
+@@ -18,5 +18,3 @@ void h(void) {
+   int y = 0;
+-
+-
+   return;
+ }
+diff --git a/src/insertion.c b/src/insertion.c
+index 7777777..8888888 100644
+--- a/src/insertion.c
++++ b/src/insertion.c
+@@ -30,4 +30,5 @@ void i(void) {
+   int z = 0;
+   int w = 1;
++
+   return;
+ }
+diff --git a/src/top.c b/src/top.c
+index 9999999..aaaaaaa 100644
+--- a/src/top.c
++++ b/src/top.c
+@@ -1,3 +1,4 @@
++// clang-format off
+ #include <stdio.h>
+ #include <stdlib.h>
+ int main(void) {
+diff --git a/src/fence.c b/src/fence.c
+index bbbbbbb..ccccccc 100644
+--- a/src/fence.c
++++ b/src/fence.c
+@@ -40,3 +40,3 @@ void j(void) {
+-  const char* doc = "```";
++  const char *doc = "```";
+   return;
+ }
+diff --git a/src/eof.c b/src/eof.c
+index ddddddd..eeeeeee 100644
+--- a/src/eof.c
++++ b/src/eof.c
+@@ -50,1 +50,1 @@ void k(void) {
+-  int  last=0;
+\ No newline at end of file
++  int last = 0;

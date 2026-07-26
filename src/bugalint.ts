@@ -101,9 +101,71 @@ function* parseSarif(input: string): Generator<Issue> {
   }
 }
 
+const defaultDiffMessage = 'Not formatted correctly'
+
+function normalizeDiffLineEndings(diff: string): string {
+  return /^(?:diff --git |@@ ).*\r$/m.test(diff) ? diff.replace(/\r\n/g, '\n') : diff
+}
+
+function normalDiffLine(change?: parseDiff.Change): parseDiff.NormalChange | undefined {
+  return change?.type === 'normal' ? change : undefined
+}
+
+function* parseFormatDiff(input: string, message: string): Generator<Issue> {
+  for (const file of parseDiff(normalizeDiffLineEndings(input))) {
+    const filePath = file.from ?? file.to
+    if (filePath == null) {
+      continue
+    }
+    for (const chunk of file.chunks) {
+      const changes = chunk.changes.filter((change) => !change.content.startsWith('\\'))
+      let index = 0
+      while (index < changes.length) {
+        const start = index
+        const deleted: number[] = []
+        const inserted: string[] = []
+        while (index < changes.length) {
+          const change = changes[index]
+          if (change.type !== 'del') {
+            break
+          }
+          deleted.push(change.ln)
+          index++
+        }
+        while (index < changes.length) {
+          const change = changes[index]
+          if (change.type !== 'add') {
+            break
+          }
+          inserted.push(change.content.slice(1))
+          index++
+        }
+        let location: Pick<Issue, 'line' | 'eline' | 'fix'> | undefined
+        if (deleted.length > 0) {
+          location = { line: deleted[0], eline: deleted[deleted.length - 1], fix: inserted.join('\n') }
+        } else if (inserted.length > 0) {
+          const before = normalDiffLine(changes[start - 1])
+          const after = normalDiffLine(changes[index])
+          if (before != null) {
+            location = { line: before.ln1, eline: before.ln1, fix: [before.content.slice(1), ...inserted].join('\n') }
+          } else if (after != null) {
+            location = { line: after.ln1, eline: after.ln1, fix: [...inserted, after.content.slice(1)].join('\n') }
+          }
+        } else {
+          index++
+        }
+        if (location != null) {
+          yield { msg: message, level: 'warning', path: filePath, ...location }
+        }
+      }
+    }
+  }
+}
+
 const knownParsers: Record<string, Parser> = {
   pylint: parsePylint,
   sarif: parseSarif,
+  diff: (input: string) => parseFormatDiff(input, defaultDiffMessage),
   mypy: (input: string) =>
     parseRegex(
       input,
@@ -193,6 +255,10 @@ export function getKnownParser(identifier: string): Parser {
 
 export function getRegexParser(regex: RegExp, levelMap?: Record<string, Result.level>): Parser {
   return (input: string) => parseRegex(input, regex, levelMap)
+}
+
+export function getDiffParser(message: string): Parser {
+  return (input: string) => parseFormatDiff(input, message === '' ? defaultDiffMessage : message)
 }
 
 function buildCommentBody(commentTag: string, identifier: string, issue: Issue): string {

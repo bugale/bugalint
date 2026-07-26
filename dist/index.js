@@ -29936,6 +29936,7 @@ exports._testExports = void 0;
 exports.generateSarif = generateSarif;
 exports.getKnownParser = getKnownParser;
 exports.getRegexParser = getRegexParser;
+exports.getDiffParser = getDiffParser;
 exports.addComments = addComments;
 exports.getPrDiff = getPrDiff;
 exports.parseDiffLines = parseDiffLines;
@@ -30024,9 +30025,70 @@ function* parseSarif(input) {
         }
     }
 }
+const defaultDiffMessage = 'Not formatted correctly';
+function normalizeDiffLineEndings(diff) {
+    return /^(?:diff --git |@@ ).*\r$/m.test(diff) ? diff.replace(/\r\n/g, '\n') : diff;
+}
+function normalDiffLine(change) {
+    return change?.type === 'normal' ? change : undefined;
+}
+function* parseFormatDiff(input, message) {
+    for (const file of (0, parse_diff_1.default)(normalizeDiffLineEndings(input))) {
+        const filePath = file.from ?? file.to;
+        if (filePath == null) {
+            continue;
+        }
+        for (const chunk of file.chunks) {
+            const changes = chunk.changes.filter((change) => !change.content.startsWith('\\'));
+            let index = 0;
+            while (index < changes.length) {
+                const start = index;
+                const deleted = [];
+                const inserted = [];
+                while (index < changes.length) {
+                    const change = changes[index];
+                    if (change.type !== 'del') {
+                        break;
+                    }
+                    deleted.push(change.ln);
+                    index++;
+                }
+                while (index < changes.length) {
+                    const change = changes[index];
+                    if (change.type !== 'add') {
+                        break;
+                    }
+                    inserted.push(change.content.slice(1));
+                    index++;
+                }
+                let location;
+                if (deleted.length > 0) {
+                    location = { line: deleted[0], eline: deleted[deleted.length - 1], fix: inserted.join('\n') };
+                }
+                else if (inserted.length > 0) {
+                    const before = normalDiffLine(changes[start - 1]);
+                    const after = normalDiffLine(changes[index]);
+                    if (before != null) {
+                        location = { line: before.ln1, eline: before.ln1, fix: [before.content.slice(1), ...inserted].join('\n') };
+                    }
+                    else if (after != null) {
+                        location = { line: after.ln1, eline: after.ln1, fix: [...inserted, after.content.slice(1)].join('\n') };
+                    }
+                }
+                else {
+                    index++;
+                }
+                if (location != null) {
+                    yield { msg: message, level: 'warning', path: filePath, ...location };
+                }
+            }
+        }
+    }
+}
 const knownParsers = {
     pylint: parsePylint,
     sarif: parseSarif,
+    diff: (input) => parseFormatDiff(input, defaultDiffMessage),
     mypy: (input) => parseRegex(input, /^(?<path>[^:\n]+):(?:(?<line>\d+):)?(?:(?<col>\d+):)?(?:(?<eline>\d+):)?(?:(?<ecol>\d+):)? (?<level>[^:\s]+): (?<msg>.+?)\s*(?:\[(?<id>\S+)\])?$/gm),
     flake8: (input) => parseRegex(input, /^(?<path>[^:\n]+):(?<line>\d+):(?<col>\d+): (?<id>\w\d+) (?<msg>[^\n]+)$/gm),
     mdl: (input) => parseRegex(input, /^(?<path>[^:\n]+)(?::(?<line>\d+))?(?::(?<col>\d+))? (?<id>[^/\n]+)\/(?<sym>[^\s]+) (?<msg>[^\n]+)$/gm),
@@ -30104,6 +30166,9 @@ function getKnownParser(identifier) {
 }
 function getRegexParser(regex, levelMap) {
     return (input) => parseRegex(input, regex, levelMap);
+}
+function getDiffParser(message) {
+    return (input) => parseFormatDiff(input, message === '' ? defaultDiffMessage : message);
 }
 function buildCommentBody(commentTag, identifier, issue) {
     const body = `${commentTag}\n**${issue.msg}**\n[${[issue.level, identifier, issue.id, issue.sym].filter((n) => n).join(':')}]`;
@@ -32175,6 +32240,15 @@ const fs_1 = __nccwpck_require__(9896);
 const github_1 = __nccwpck_require__(3228);
 const core_1 = __nccwpck_require__(7484);
 const bugalint_1 = __nccwpck_require__(8983);
+function getParser(inputFormat, inputRegex, levelMap, message) {
+    if (inputFormat === '') {
+        return (0, bugalint_1.getRegexParser)(new RegExp(inputRegex, 'gm'), levelMap === '' ? undefined : JSON.parse(levelMap));
+    }
+    if (inputFormat === 'diff') {
+        return (0, bugalint_1.getDiffParser)(message);
+    }
+    return (0, bugalint_1.getKnownParser)(inputFormat);
+}
 async function run() {
     try {
         const inputFile = (0, core_1.getInput)('inputFile');
@@ -32189,10 +32263,10 @@ async function run() {
         const levelMap = (0, core_1.getInput)('levelMap');
         const analysisPath = (0, core_1.getInput)('analysisPath');
         const githubToken = (0, core_1.getInput)('githubToken');
-        const parser = inputFormat === ''
-            ? (0, bugalint_1.getRegexParser)(new RegExp(inputRegex, 'gm'), levelMap === '' ? undefined : JSON.parse(levelMap))
-            : (0, bugalint_1.getKnownParser)(inputFormat);
-        const input = (0, fs_1.readFileSync)(inputFile, 'utf-8').replace(/\r/g, '');
+        const message = (0, core_1.getInput)('message');
+        const parser = getParser(inputFormat, inputRegex, levelMap, message);
+        const raw = (0, fs_1.readFileSync)(inputFile, 'utf-8');
+        const input = inputFormat === 'diff' ? raw : raw.replace(/\r/g, '');
         (0, core_1.debug)(`input: ${input}`);
         const output = (0, bugalint_1.generateSarif)(parser(input), toolName, analysisPath);
         (0, core_1.info)(`SARIF output: ${JSON.stringify(output, null, 2)}`);
