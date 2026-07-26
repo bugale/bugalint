@@ -30039,6 +30039,9 @@ function normalizeDiffLineEndings(diff) {
 function normalDiffLine(change) {
     return change?.type === 'normal' ? change : undefined;
 }
+function changesContent(removed, inserted) {
+    return removed.length !== inserted.length || removed.some((line, index) => line !== inserted[index]);
+}
 function* parseFormatDiff(input, message) {
     for (const file of (0, parse_diff_1.default)(normalizeDiffLineEndings(input))) {
         const filePath = file.from ?? file.to;
@@ -30057,7 +30060,7 @@ function* parseFormatDiff(input, message) {
                     if (change.type !== 'del') {
                         break;
                     }
-                    deleted.push(change.ln);
+                    deleted.push(change);
                     index++;
                 }
                 while (index < changes.length) {
@@ -30070,7 +30073,10 @@ function* parseFormatDiff(input, message) {
                 }
                 let location;
                 if (deleted.length > 0) {
-                    location = { line: deleted[0], eline: deleted[deleted.length - 1], fix: inserted };
+                    const line = deleted[0].ln;
+                    const eline = deleted[deleted.length - 1].ln;
+                    const removed = deleted.map((change) => change.content.slice(1));
+                    location = changesContent(removed, inserted) ? { line, eline, fix: inserted } : { line, eline };
                 }
                 else if (inserted.length > 0) {
                     const before = normalDiffLine(changes[start - 1]);

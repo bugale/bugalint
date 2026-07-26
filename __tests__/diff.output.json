@@ -150,6 +150,11 @@
             }
           ],
           "level": "warning"
+        },
+        {
+          "message": { "text": "Not formatted correctly" },
+          "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "src/term.c" }, "region": { "startLine": 70, "endLine": 70 } } }],
+          "level": "warning"
         }
       ]
     }

@@ -79,3 +79,11 @@ index fffffff..ggggggg 100644
 -    
 +
    return a;
+diff --git a/src/term.c b/src/term.c
+index hhhhhhh..iiiiiii 100644
+--- a/src/term.c
++++ b/src/term.c
+@@ -70,1 +70,1 @@ void n(void) {
+-  int last = 0;
+\ No newline at end of file
++  int last = 0;

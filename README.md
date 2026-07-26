@@ -119,8 +119,9 @@ Every contiguous run of changed lines becomes one issue, rather than every hunk,
 reported range. Issues are anchored on the lines of the old side of the diff, which are the lines of the committed file that the pull request shows and that
 comments can be attached to, while the new side becomes the fix. A run that only adds lines has no line of its own to anchor to, so it is extended to a
 neighbouring line, preferring the preceding one, whose content is repeated in the fix. The marker `git diff` prints for a file that does not end with a newline
-is ignored, so the last line of such a file is reported like any other. A run replacing lines with nothing deletes them, while one replacing them with an empty
-line blanks them, which is what a formatter stripping the whitespace of a blank line produces.
+is ignored, so the last line of such a file is reported like any other. A change of that terminator alone leaves the old and the new lines identical, so the
+issue is reported without a fix rather than with a suggestion replacing a line with itself. A run replacing lines with nothing deletes them, while one replacing
+them with an empty line blanks them, which is what a formatter stripping the whitespace of a blank line produces.
 
 Note that a formatter that fails without writing anything produces an empty diff, which is indistinguishable from a formatter that found nothing to fix. The
 step running the formatter should therefore fail the job by itself.

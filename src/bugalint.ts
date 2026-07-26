@@ -119,6 +119,10 @@ function normalDiffLine(change?: parseDiff.Change): parseDiff.NormalChange | und
   return change?.type === 'normal' ? change : undefined
 }
 
+function changesContent(removed: string[], inserted: string[]): boolean {
+  return removed.length !== inserted.length || removed.some((line, index) => line !== inserted[index])
+}
+
 function* parseFormatDiff(input: string, message: string): Generator<Issue> {
   for (const file of parseDiff(normalizeDiffLineEndings(input))) {
     const filePath = file.from ?? file.to
@@ -130,14 +134,14 @@ function* parseFormatDiff(input: string, message: string): Generator<Issue> {
       let index = 0
       while (index < changes.length) {
         const start = index
-        const deleted: number[] = []
+        const deleted: parseDiff.DeleteChange[] = []
         const inserted: string[] = []
         while (index < changes.length) {
           const change = changes[index]
           if (change.type !== 'del') {
             break
           }
-          deleted.push(change.ln)
+          deleted.push(change)
           index++
         }
         while (index < changes.length) {
@@ -150,7 +154,10 @@ function* parseFormatDiff(input: string, message: string): Generator<Issue> {
         }
         let location: Pick<Issue, 'line' | 'eline' | 'fix'> | undefined
         if (deleted.length > 0) {
-          location = { line: deleted[0], eline: deleted[deleted.length - 1], fix: inserted }
+          const line = deleted[0].ln
+          const eline = deleted[deleted.length - 1].ln
+          const removed = deleted.map((change) => change.content.slice(1))
+          location = changesContent(removed, inserted) ? { line, eline, fix: inserted } : { line, eline }
         } else if (inserted.length > 0) {
           const before = normalDiffLine(changes[start - 1])
           const after = normalDiffLine(changes[index])

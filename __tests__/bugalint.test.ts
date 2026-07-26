@@ -271,6 +271,12 @@ describe('diffFormat', () => {
     expect(firstIssue([...header, '-int  a=0;', '\\ No newline at end of file', '+int a = 0;'])).toMatchObject({ line: 1, eline: 1, fix: ['int a = 0;'] })
   })
 
+  it('reports a change of the line terminator alone without a fix replacing a line with itself', () => {
+    const issue = firstIssue([...header, '-int a = 0;', '\\ No newline at end of file', '+int a = 0;'])
+    expect(issue).toMatchObject({ line: 1, eline: 1 })
+    expect(issue).not.toHaveProperty('fix')
+  })
+
   it('keeps carriage returns that are part of the content', () => {
     expect(firstIssue([...header, '-int  a=0;\r', '+int a = 0;\r'])).toMatchObject({ fix: ['int a = 0;\r'] })
   })
