@@ -148,11 +148,25 @@ jobs:
           toolName: 'test'
           inputFormat: 'flake8'
           failOnlyNew: 'true'
+      - name: Run Action With An Empty Renamed Input
+        id: runempty
+        continue-on-error: true
+        uses: ./
+        with:
+          inputFile: '__tests__/noissues.input.txt'
+          toolName: 'test'
+          inputFormat: 'flake8'
+          failOnlyNew: ''
       - name: Test Outcome
         run: |
           if [ "${{ steps.run.outcome }}" != "failure" ];
           then
             echo "Expected the action to reject the renamed input but it ended with ${{ steps.run.outcome }}"
+            exit 1
+          fi
+          if [ "${{ steps.runempty.outcome }}" != "failure" ];
+          then
+            echo "Expected the action to reject an empty renamed input but it ended with ${{ steps.runempty.outcome }}"
             exit 1
           fi
           if [ -f sarif.json ];

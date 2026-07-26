@@ -58,6 +58,9 @@ steps:
   a complete SARIF while narrowing only its exit code starts uploading a filtered one. GitHub does not reject an input an action does not declare, so passing
   the old name fails the step with an error saying so, rather than leaving it to look like it is still in effect.
 
+  Rename the input and update the pinned version in the same commit. Only the old name can be rejected: an older version of the action cannot know about the
+  new one, so a workflow that renames the input without moving the pin has it ignored in silence and fails on every issue instead of the new ones.
+
 - `toolName`: _(required)_ The `tool name` that will be written in the SARIF output. This is used by both code scanning and auto-pr-commenting to resolve fixed
   issues.
 
