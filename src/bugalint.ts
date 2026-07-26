@@ -1,9 +1,12 @@
 import type { Log, Region, ReportingDescriptor, Result } from 'sarif'
 import { getOctokit } from '@actions/github'
 import { debug, warning, summary } from '@actions/core'
+import { createHash } from 'crypto'
 import path from 'path'
 import parseDiff from 'parse-diff'
 import type { SummaryTableRow } from '@actions/core/lib/summary'
+
+/* eslint camelcase: ["error", {allow: ['^pull_number$', '^comment_id$', '^start_side$', '^start_line$', '^in_reply_to_id$']}] */
 
 interface Issue {
   id?: string
@@ -281,13 +284,77 @@ export function getDiffParser(message: string): Parser {
   return (input: string) => parseFormatDiff(input, message === '' ? defaultDiffMessage : message)
 }
 
-function buildCommentBody(commentTag: string, identifier: string, issue: Issue): string {
-  const body = `${commentTag}\n**${issue.msg}**\n[${[issue.level, identifier, issue.id, issue.sym].filter((n) => n).join(':')}]`
+function buildCommentContent(identifier: string, issue: Issue): string {
+  const content = `**${issue.msg}**\n[${[issue.level, identifier, issue.id, issue.sym].filter((n) => n).join(':')}]`
   if (issue.fix == null) {
-    return body
+    return content
   }
   const fence = '`'.repeat(Math.max(3, ...Array.from(issue.fix.join('\n').matchAll(/`+/g), (m) => m[0].length + 1)))
-  return `${body}\n${fence}suggestion\n${joinFixLines(issue.fix)}${fence}`
+  return `${content}\n${fence}suggestion\n${joinFixLines(issue.fix)}${fence}`
+}
+
+function buildFingerprint(content: string): string {
+  return createHash('sha256').update(content).digest('hex').slice(0, 16)
+}
+
+function buildCommentTag(identifier: string, fingerprint: string): string {
+  return `<!-- bugale/bugalint ${identifier} ${fingerprint} -->`
+}
+
+interface Comment {
+  fingerprint: string
+  body: string
+}
+
+function buildComment(identifier: string, issue: Issue): Comment {
+  const content = buildCommentContent(identifier, issue)
+  const fingerprint = buildFingerprint(content)
+  return { fingerprint, body: `${buildCommentTag(identifier, fingerprint)}\n${content}` }
+}
+
+function buildCommentTagRegex(identifier: string): RegExp {
+  return new RegExp(`^<!-- bugale/bugalint ${identifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?: (?<fingerprint>[0-9a-f]+))? -->(?:\r?\n|$)`)
+}
+
+function buildCommentKey(commentPath: string, line: number, endLine: number, fingerprint: string): string {
+  return [commentPath, line, endLine, fingerprint].join('\u0000')
+}
+
+interface PostedComments {
+  own: number[]
+  replied: Set<number>
+  byKey: Map<string, number[]>
+}
+
+async function listPostedComments(
+  octokit: ReturnType<typeof getOctokit>,
+  identifier: string,
+  owner: string,
+  repo: string,
+  prNumber: number
+): Promise<PostedComments> {
+  const tagRegex = buildCommentTagRegex(identifier)
+  const posted: PostedComments = { own: [], replied: new Set(), byKey: new Map() }
+  for await (const { data: comments } of octokit.paginate.iterator(octokit.rest.pulls.listReviewComments, { owner, repo, pull_number: prNumber })) {
+    for (const comment of comments) {
+      if (comment?.in_reply_to_id != null) {
+        posted.replied.add(comment.in_reply_to_id)
+      }
+      const match = comment?.id != null ? tagRegex.exec(comment?.body ?? '') : null
+      if (match == null) {
+        continue
+      }
+      posted.own.push(comment.id)
+      const fingerprint = match.groups?.fingerprint
+      if (fingerprint == null || comment.line == null) {
+        continue
+      }
+      const key = buildCommentKey(comment.path, comment.start_line ?? comment.line, comment.line, fingerprint)
+      posted.byKey.set(key, [...(posted.byKey.get(key) ?? []), comment.id])
+    }
+  }
+  debug(`Found ${posted.own.length} comments of ${identifier}, ${posted.byKey.size} of which carry a fingerprint`)
+  return posted
 }
 
 export async function addComments(
@@ -300,22 +367,11 @@ export async function addComments(
   prNumber: number,
   analysisPath: string
 ): Promise<void> {
-  /* eslint camelcase: ["error", {allow: ['^pull_number$', '^comment_id$', '^start_side$', '^start_line$']}] */
   const octokit = getOctokit(githubToken)
-
-  debug('Deleting old comments')
-  const commentTag = `<!-- bugale/bugalint ${identifier} -->`
-  for await (const { data: comments } of octokit.paginate.iterator(octokit.rest.pulls.listReviewComments, { owner, repo, pull_number: prNumber })) {
-    for (const c of comments) {
-      if (c?.id != null && c?.body?.includes(commentTag)) {
-        debug(`Deleting comment ${c?.id}`)
-        await octokit.rest.pulls.deleteReviewComment({ owner, repo, comment_id: c?.id })
-      }
-    }
-  }
-
+  const posted = await listPostedComments(octokit, identifier, owner, repo, prNumber)
   const diffLines = parseDiffLines(prDiff)
 
+  const kept = new Set<number>()
   const comments = []
   for (const issue of issues) {
     debug(`Processing issue on ${issue.path}:${issue.line}`)
@@ -327,30 +383,46 @@ export async function addComments(
       debug(`Skipping issue on ${issue.path}:${issue.line} because GitHub rejects comments spanning lines outside the PR diff`)
       continue
     }
-    if (comments.length >= 50) {
-      warning('More than 50 comments detected. Only the first 50 will be posted.')
-      break
+
+    const commentPath = normalizePath(issue.path, analysisPath)
+    const endLine = issue.eline ?? issue.line
+    const { fingerprint, body } = buildComment(identifier, issue)
+    const existing = posted.byKey.get(buildCommentKey(commentPath, issue.line, endLine, fingerprint))?.shift()
+    if (existing != null) {
+      debug(`Keeping comment ${existing} of the issue on ${issue.path}:${issue.line}`)
+      kept.add(existing)
+      continue
     }
 
-    const endLine = issue.eline ?? issue.line
     const args = {
-      path: normalizePath(issue.path, analysisPath),
+      path: commentPath,
       side: 'RIGHT',
       start_side: 'RIGHT',
       line: endLine,
       start_line: endLine === issue.line ? undefined : issue.line,
-      body: buildCommentBody(commentTag, identifier, issue)
+      body
     }
     debug(`Generating comment ${JSON.stringify(args)}`)
     comments.push(args)
   }
+
+  const budget = Math.max(0, 50 - kept.size)
+  if (comments.length > budget) {
+    warning('More than 50 comments detected. Only the first 50 will be posted.')
+    comments.length = budget
+  }
+  const outdated = posted.own.filter((id) => !kept.has(id) && !posted.replied.has(id))
   if (comments.length === 0) {
     debug('No comments to post')
-    return
+  } else {
+    debug('Sending comments')
+    await octokit.rest.pulls.createReview({ owner, repo, pull_number: prNumber, event: 'COMMENT', comments })
+    debug('Sent comments')
   }
-  debug('Sending comments')
-  await octokit.rest.pulls.createReview({ owner, repo, pull_number: prNumber, event: 'COMMENT', comments })
-  debug('Sent comments')
+  for (const id of outdated) {
+    debug(`Deleting comment ${id}`)
+    await octokit.rest.pulls.deleteReviewComment({ owner, repo, comment_id: id })
+  }
 }
 
 export type DiffLines = Record<string, Record<number, boolean>>
@@ -445,5 +517,5 @@ export async function createSummary(issues: Iterable<Issue>, identifier: string,
 
 export const _testExports = {
   normalizePath,
-  buildCommentBody
+  buildComment
 }

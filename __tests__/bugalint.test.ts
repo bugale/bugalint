@@ -1,6 +1,8 @@
 import '@microsoft/jest-sarif'
 import { readFileSync } from 'fs'
 import type { Region } from 'sarif'
+import { getOctokit } from '@actions/github'
+import { warning } from '@actions/core'
 import {
   generateSarif,
   getKnownParser,
@@ -11,9 +13,15 @@ import {
   isCommentableIssue,
   failOnIssues,
   filterNewIssues,
+  addComments,
   _testExports,
   type Parser
 } from '../src/bugalint'
+
+jest.mock('@actions/github', () => ({ getOctokit: jest.fn() }))
+jest.mock('@actions/core', () => ({ ...jest.requireActual('@actions/core'), warning: jest.fn() }))
+
+/* eslint camelcase: ["error", {allow: ['^comment_id$', '^start_side$', '^start_line$', '^in_reply_to_id$']}] */
 
 describe('fullConversion', () => {
   it.each([
@@ -118,10 +126,16 @@ index 1111111..2222222 100644
 })
 
 describe('commentBody', () => {
-  const tag = '<!-- bugale/bugalint test -->'
-  const header = `${tag}\n**Message**\n[warning:test]`
   const issue = { level: 'warning' as const, msg: 'Message' }
-  const body = (fix?: string[]): string => _testExports.buildCommentBody(tag, 'test', fix === undefined ? issue : { ...issue, fix })
+  const header = '**Message**\n[warning:test]'
+  const built = (fix?: string[]): ReturnType<typeof _testExports.buildComment> =>
+    _testExports.buildComment('test', fix === undefined ? issue : { ...issue, fix })
+  const body = (fix?: string[]): string => built(fix).body.replace(/^<!-- bugale\/bugalint test [0-9a-f]{16} -->\n/, '')
+
+  it('starts with an invisible tag carrying the identifier and the fingerprint', () => {
+    expect(built().body).toBe(`<!-- bugale/bugalint test ${built().fingerprint} -->\n${header}`)
+    expect(built().fingerprint).toMatch(/^[0-9a-f]{16}$/)
+  })
 
   it('omits the suggestion when the issue has no fix', () => {
     expect(body()).toBe(header)
@@ -149,6 +163,280 @@ describe('commentBody', () => {
 
   it('uses a fence longer than the longest backtick run in the fix', () => {
     expect(body(['doc = "```"'])).toBe(`${header}\n\`\`\`\`suggestion\ndoc = "\`\`\`"\n\`\`\`\``)
+  })
+
+  it('gives the same fingerprint to the same rendered comment and a different one to any change', () => {
+    expect(built(['x = 1']).fingerprint).toBe(built(['x = 1']).fingerprint)
+    expect(built(['x = 1']).fingerprint).not.toBe(built(['x = 2']).fingerprint)
+    expect(built(['x = 1']).fingerprint).not.toBe(built().fingerprint)
+    expect(built().fingerprint).not.toBe(_testExports.buildComment('test', { ...issue, msg: 'Other' }).fingerprint)
+    expect(built().fingerprint).not.toBe(_testExports.buildComment('test', { ...issue, level: 'error' }).fingerprint)
+    expect(built().fingerprint).not.toBe(_testExports.buildComment('other', issue).fingerprint)
+  })
+})
+
+describe('commentReconciliation', () => {
+  type Issue = Parameters<typeof addComments>[0] extends Iterable<infer T> ? T : never
+
+  interface ReviewComment {
+    id: number
+    body: string
+    path: string
+    line?: number
+    start_line?: number | null
+    in_reply_to_id?: number
+  }
+
+  interface DraftComment {
+    path: string
+    side: string
+    start_side: string
+    line: number
+    start_line?: number
+    body: string
+  }
+
+  interface Calls {
+    posted: DraftComment[][]
+    deleted: number[]
+    order: string[]
+  }
+
+  const identifier = 'test'
+  const file = 'a.py'
+  const otherFile = 'b.py'
+  const warnings = jest.mocked(warning)
+  const bodyOf = (issue: Issue, tool = identifier): string => _testExports.buildComment(tool, issue).body
+
+  const diff = (count: number): string =>
+    [file, otherFile]
+      .map((name) =>
+        [
+          `diff --git a/${name} b/${name}`,
+          `--- a/${name}`,
+          `+++ b/${name}`,
+          `@@ -0,0 +1,${count} @@`,
+          ...Array.from({ length: count }, (_, index) => `+line ${index + 1}`),
+          ''
+        ].join('\n')
+      )
+      .join('')
+
+  const issueAt = (line: number, fix?: string[], eline?: number): Issue => ({ msg: 'Message', level: 'warning', path: file, line, eline, fix })
+
+  const commentOf = (id: number, issue: Issue, overrides: Partial<ReviewComment> = {}): ReviewComment => ({
+    id,
+    body: bodyOf(issue),
+    path: file,
+    line: issue.eline ?? issue.line,
+    start_line: issue.eline == null ? null : issue.line,
+    ...overrides
+  })
+
+  const run = async (existing: ReviewComment[], issues: Issue[], lines = 10, tool = identifier): Promise<Calls> => {
+    const calls: Calls = { posted: [], deleted: [], order: [] }
+    const pages: ReviewComment[][] = []
+    for (let index = 0; index < existing.length; index += 2) {
+      pages.push(existing.slice(index, index + 2))
+    }
+    const octokit = {
+      paginate: {
+        async *iterator(): AsyncGenerator<{ data: ReviewComment[] }> {
+          for (const page of pages) {
+            yield { data: page }
+          }
+        }
+      },
+      rest: {
+        pulls: {
+          listReviewComments: {},
+          createReview: async (args: { comments: DraftComment[] }): Promise<void> => {
+            calls.posted.push(args.comments)
+            calls.order.push('post')
+          },
+          deleteReviewComment: async (args: { comment_id: number }): Promise<void> => {
+            calls.deleted.push(args.comment_id)
+            calls.order.push(`delete ${args.comment_id}`)
+          }
+        }
+      }
+    }
+    jest.mocked(getOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof getOctokit>)
+    await addComments(issues, diff(lines), 'token', tool, 'owner', 'repo', 1, '.')
+    return calls
+  }
+
+  beforeEach(() => {
+    warnings.mockClear()
+  })
+
+  it('posts a comment of a finding that does not have one yet', async () => {
+    const issue = issueAt(2, ['x = 1'])
+    const calls = await run([], [issue])
+    expect(calls.posted).toStrictEqual([[{ path: file, side: 'RIGHT', start_side: 'RIGHT', line: 2, start_line: undefined, body: bodyOf(issue) }]])
+    expect(calls.deleted).toStrictEqual([])
+  })
+
+  it('leaves the comment of an unchanged finding alone, neither deleting nor reposting it', async () => {
+    const issue = issueAt(2, ['x = 1'])
+    const calls = await run([commentOf(1, issue)], [issue])
+    expect(calls.posted).toStrictEqual([])
+    expect(calls.deleted).toStrictEqual([])
+  })
+
+  it('deletes the comment of a finding that disappeared', async () => {
+    const calls = await run([commentOf(1, issueAt(2, ['x = 1']))], [])
+    expect(calls.posted).toStrictEqual([])
+    expect(calls.deleted).toStrictEqual([1])
+  })
+
+  it('replaces the comment of a finding whose suggestion changed', async () => {
+    const changed = issueAt(2, ['x = 2'])
+    const calls = await run([commentOf(1, issueAt(2, ['x = 1']))], [changed])
+    expect(calls.posted).toStrictEqual([[expect.objectContaining({ line: 2, body: bodyOf(changed) })]])
+    expect(calls.deleted).toStrictEqual([1])
+  })
+
+  it('replaces the comment of a finding whose message changed', async () => {
+    const changed = { ...issueAt(2), msg: 'Other' }
+    const calls = await run([commentOf(1, issueAt(2))], [changed])
+    expect(calls.posted).toStrictEqual([[expect.objectContaining({ body: bodyOf(changed) })]])
+    expect(calls.deleted).toStrictEqual([1])
+  })
+
+  it('posts before deleting, so a rejected review leaves the old comments in place', async () => {
+    const calls = await run([commentOf(1, issueAt(2, ['x = 1']))], [issueAt(3, ['y = 1'])])
+    expect(calls.order).toStrictEqual(['post', 'delete 1'])
+  })
+
+  it('matches the line GitHub currently reports, so a comment that moved with the diff is kept', async () => {
+    const shifted = commentOf(1, issueAt(2, ['x = 1']), { line: 5, start_line: null })
+    const calls = await run([shifted], [issueAt(5, ['x = 1'])])
+    expect(calls.posted).toStrictEqual([])
+    expect(calls.deleted).toStrictEqual([])
+  })
+
+  it('replaces a comment that GitHub no longer anchors to any line', async () => {
+    const issue = issueAt(2, ['x = 1'])
+    const calls = await run([commentOf(1, issue, { line: undefined })], [issue])
+    expect(calls.posted).toStrictEqual([[expect.objectContaining({ body: bodyOf(issue) })]])
+    expect(calls.deleted).toStrictEqual([1])
+  })
+
+  it('matches the whole range of a multi line comment', async () => {
+    const issue = issueAt(2, ['x = 1', 'y = 2'], 3)
+    expect((await run([commentOf(1, issue)], [issue])).deleted).toStrictEqual([])
+    const widened = issueAt(1, ['x = 1', 'y = 2'], 3)
+    const calls = await run([commentOf(1, issue)], [widened])
+    expect(calls.posted).toStrictEqual([[expect.objectContaining({ line: 3, start_line: 1 })]])
+    expect(calls.deleted).toStrictEqual([1])
+  })
+
+  it('never deletes a comment that was replied to', async () => {
+    const reply: ReviewComment = { id: 2, body: 'Why?', path: file, line: 2, in_reply_to_id: 1 }
+    const calls = await run([commentOf(1, issueAt(2, ['x = 1'])), reply], [])
+    expect(calls.deleted).toStrictEqual([])
+  })
+
+  it('keeps a comment that was replied to even when its finding changed, posting the new one beside it', async () => {
+    const reply: ReviewComment = { id: 2, body: 'Why?', path: file, line: 2, in_reply_to_id: 1 }
+    const changed = issueAt(2, ['x = 2'])
+    const calls = await run([commentOf(1, issueAt(2, ['x = 1'])), reply], [changed])
+    expect(calls.posted).toStrictEqual([[expect.objectContaining({ body: bodyOf(changed) })]])
+    expect(calls.deleted).toStrictEqual([])
+  })
+
+  it('replaces a comment of an older version, whose tag carries no fingerprint', async () => {
+    const issue = issueAt(2, ['x = 1'])
+    const legacy: ReviewComment = { id: 1, body: `<!-- bugale/bugalint ${identifier} -->\n**Message**\n[warning:test]`, path: file, line: 2 }
+    const calls = await run([legacy], [issue])
+    expect(calls.posted).toStrictEqual([[expect.objectContaining({ body: bodyOf(issue) })]])
+    expect(calls.deleted).toStrictEqual([1])
+  })
+
+  it('deletes a comment of an older version whose finding disappeared', async () => {
+    const legacy: ReviewComment = { id: 1, body: `<!-- bugale/bugalint ${identifier} -->\n**Message**`, path: file, line: 2 }
+    expect((await run([legacy], [])).deleted).toStrictEqual([1])
+  })
+
+  it('touches neither comments of other tools nor comments of humans', async () => {
+    const others: ReviewComment[] = [
+      { id: 1, body: '<!-- bugale/bugalint other 0123456789abcdef -->\n**Message**', path: file, line: 2 },
+      { id: 2, body: `<!-- bugale/bugalint ${identifier}ing 0123456789abcdef -->\n**Message**`, path: file, line: 2 },
+      { id: 3, body: 'Looks good to me', path: file, line: 2 },
+      { id: 4, body: `Quoting <!-- bugale/bugalint ${identifier} 0123456789abcdef -->`, path: file, line: 2 }
+    ]
+    expect((await run(others, [])).deleted).toStrictEqual([])
+  })
+
+  it('reads a tool name literally rather than as a pattern', async () => {
+    const issue = issueAt(2, ['x = 1'])
+    const tool = 'a.b+c'
+    const foreign: ReviewComment = { id: 1, body: bodyOf(issue, 'aXb+c'), path: file, line: 2 }
+    const calls = await run([foreign, { ...commentOf(2, issue), body: bodyOf(issue, tool) }], [issue], 10, tool)
+    expect(calls.posted).toStrictEqual([])
+    expect(calls.deleted).toStrictEqual([])
+  })
+
+  it('keeps exactly one comment per identical finding', async () => {
+    const issue = issueAt(2, ['x = 1'])
+    const existing = [commentOf(1, issue), commentOf(2, issue)]
+    const both = await run(existing, [issue, issue])
+    expect(both.posted).toStrictEqual([])
+    expect(both.deleted).toStrictEqual([])
+    const one = await run([commentOf(1, issue), commentOf(2, issue)], [issue])
+    expect(one.posted).toStrictEqual([])
+    expect(one.deleted).toStrictEqual([2])
+    const three = await run([commentOf(1, issue), commentOf(2, issue)], [issue, issue, issue])
+    expect(three.posted[0]).toHaveLength(1)
+    expect(three.deleted).toStrictEqual([])
+  })
+
+  it('still skips a finding whose range leaves the pull request diff', async () => {
+    expect((await run([], [issueAt(9, undefined, 12)])).posted).toStrictEqual([])
+  })
+
+  it('tells apart the same finding reported on the same line of two files', async () => {
+    const issue = issueAt(2, ['x = 1'])
+    const other = { ...issue, path: otherFile }
+    const both = await run([commentOf(1, issue), { ...commentOf(2, other), path: otherFile }], [issue, other])
+    expect(both.posted).toStrictEqual([])
+    expect(both.deleted).toStrictEqual([])
+    const moved = await run([{ ...commentOf(1, other), path: otherFile }], [issue])
+    expect(moved.posted).toStrictEqual([[expect.objectContaining({ path: file, line: 2 })]])
+    expect(moved.deleted).toStrictEqual([1])
+  })
+
+  it('posts at most 50 comments', async () => {
+    const issues = Array.from({ length: 55 }, (_, index) => issueAt(index + 1))
+    const calls = await run([], issues, 60)
+    expect(calls.posted[0]).toHaveLength(50)
+    expect(warnings).toHaveBeenCalledWith('More than 50 comments detected. Only the first 50 will be posted.')
+  })
+
+  it('does not warn about exactly 50 comments', async () => {
+    const issues = Array.from({ length: 50 }, (_, index) => issueAt(index + 1))
+    const calls = await run([], issues, 60)
+    expect(calls.posted[0]).toHaveLength(50)
+    expect(warnings).not.toHaveBeenCalled()
+  })
+
+  it('counts the comments it keeps against the 50 comment cap', async () => {
+    const issues = Array.from({ length: 55 }, (_, index) => issueAt(index + 1))
+    const existing = issues.slice(0, 48).map((issue, index) => commentOf(index + 1, issue))
+    const calls = await run(existing, issues, 60)
+    expect(calls.posted).toStrictEqual([[expect.objectContaining({ line: 49 }), expect.objectContaining({ line: 50 })]])
+    expect(calls.deleted).toStrictEqual([])
+    expect(warnings).toHaveBeenCalled()
+  })
+
+  it('posts nothing when the comments it keeps already fill the 50 comment cap', async () => {
+    const issues = Array.from({ length: 55 }, (_, index) => issueAt(index + 1))
+    const existing = issues.slice(0, 50).map((issue, index) => commentOf(index + 1, issue))
+    const calls = await run(existing, issues, 60)
+    expect(calls.posted).toStrictEqual([])
+    expect(calls.deleted).toStrictEqual([])
+    expect(warnings).toHaveBeenCalled()
   })
 })
 
