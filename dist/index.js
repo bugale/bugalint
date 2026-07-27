@@ -30243,9 +30243,18 @@ async function addComments(issues, prDiff, githubToken, identifier, owner, repo,
     await octokit.rest.pulls.createReview({ owner, repo, pull_number: prNumber, event: 'COMMENT', comments });
     (0, core_1.debug)('Sent comments');
 }
+function decodeDiff(data) {
+    if (typeof data === 'string') {
+        return data;
+    }
+    if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) {
+        return new TextDecoder().decode(data);
+    }
+    throw new Error(`The pull request diff was returned as ${typeof data} rather than text, so no issue can be matched against the pull request`);
+}
 async function getPrDiff(githubToken, owner, repo, prNumber) {
     const octokit = (0, github_1.getOctokit)(githubToken);
-    return (await octokit.rest.pulls.get({ owner, repo, pull_number: prNumber, mediaType: { format: 'diff' } })).data;
+    return decodeDiff((await octokit.rest.pulls.get({ owner, repo, pull_number: prNumber, mediaType: { format: 'diff' } })).data);
 }
 function parseDiffLines(diff) {
     const diffLines = {};
@@ -30323,7 +30332,8 @@ async function createSummary(issues, identifier, analysisPath) {
 }
 exports._testExports = {
     normalizePath,
-    buildCommentBody
+    buildCommentBody,
+    decodeDiff
 };
 
 

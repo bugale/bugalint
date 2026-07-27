@@ -355,9 +355,19 @@ export async function addComments(
 
 export type DiffLines = Record<string, Record<number, boolean>>
 
+function decodeDiff(data: unknown): string {
+  if (typeof data === 'string') {
+    return data
+  }
+  if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) {
+    return new TextDecoder().decode(data)
+  }
+  throw new Error(`The pull request diff was returned as ${typeof data} rather than text, so no issue can be matched against the pull request`)
+}
+
 export async function getPrDiff(githubToken: string, owner: string, repo: string, prNumber: number): Promise<string> {
   const octokit = getOctokit(githubToken)
-  return (await octokit.rest.pulls.get({ owner, repo, pull_number: prNumber, mediaType: { format: 'diff' } })).data as unknown as string
+  return decodeDiff((await octokit.rest.pulls.get({ owner, repo, pull_number: prNumber, mediaType: { format: 'diff' } })).data)
 }
 
 export function parseDiffLines(diff: string): DiffLines {
@@ -441,5 +451,6 @@ export async function createSummary(issues: Iterable<Issue>, identifier: string,
 
 export const _testExports = {
   normalizePath,
-  buildCommentBody
+  buildCommentBody,
+  decodeDiff
 }

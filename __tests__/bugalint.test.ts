@@ -312,6 +312,24 @@ describe('diffFormat', () => {
   })
 })
 
+describe('prDiff', () => {
+  const decode = (data: unknown): string => _testExports.decodeDiff(data)
+
+  it('passes through a diff returned as text', () => {
+    expect(decode('diff --git a/a.c b/a.c')).toBe('diff --git a/a.c b/a.c')
+  })
+
+  it('decodes a diff returned as a buffer, which happens when the content type is not recognised as text', () => {
+    const bytes = new TextEncoder().encode('diff --git a/a.c b/a.c')
+    expect(decode(bytes.buffer)).toBe('diff --git a/a.c b/a.c')
+    expect(decode(bytes)).toBe('diff --git a/a.c b/a.c')
+  })
+
+  it('fails loudly on a diff that is neither, rather than matching every issue against nothing', () => {
+    expect(() => decode({ message: 'Not Found' })).toThrow('returned as object rather than text')
+  })
+})
+
 describe('windowsFileUrl', () => {
   if (process.platform === 'win32') {
     it('should convert Windows file URLs to relative URLs', () => {
