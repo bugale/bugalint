@@ -30258,7 +30258,11 @@ async function getPrDiff(githubToken, owner, repo, prNumber) {
 }
 function parseDiffLines(diff) {
     const diffLines = {};
-    for (const file of (0, parse_diff_1.default)(diff)) {
+    const files = (0, parse_diff_1.default)(diff);
+    if (files.length === 0 && diff.length > 0) {
+        throw new Error('The pull request diff is not empty but no file could be parsed from it, so no issue can be matched against the pull request');
+    }
+    for (const file of files) {
         if (file.to == null) {
             continue;
         }
