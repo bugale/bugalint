@@ -372,7 +372,11 @@ export async function getPrDiff(githubToken: string, owner: string, repo: string
 
 export function parseDiffLines(diff: string): DiffLines {
   const diffLines: DiffLines = {}
-  for (const file of parseDiff(diff)) {
+  const files = parseDiff(diff)
+  if (files.length === 0 && diff.length > 0) {
+    throw new Error('The pull request diff is not empty but no file could be parsed from it, so no issue can be matched against the pull request')
+  }
+  for (const file of files) {
     if (file.to == null) {
       continue
     }

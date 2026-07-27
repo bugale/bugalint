@@ -328,6 +328,12 @@ describe('prDiff', () => {
   it('fails loudly on a diff that is neither, rather than matching every issue against nothing', () => {
     expect(() => decode({ message: 'Not Found' })).toThrow('returned as object rather than text')
   })
+
+  it('rejects a non-empty diff that yields no file, which a decoded response cannot rule out', () => {
+    expect(() => parseDiffLines('<html><body>Proxy Error</body></html>')).toThrow('no file could be parsed from it')
+    expect(() => parseDiffLines('')).not.toThrow()
+    expect(() => parseDiffLines('diff --git a/a.c b/a.c\ndeleted file mode 100644\n--- a/a.c\n+++ /dev/null\n@@ -1,1 +0,0 @@\n-int a;\n')).not.toThrow()
+  })
 })
 
 describe('windowsFileUrl', () => {
