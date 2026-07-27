@@ -408,7 +408,7 @@ export async function addComments(
 
   const budget = Math.max(0, 50 - kept.size)
   if (comments.length > budget) {
-    warning('More than 50 comments detected. Only the first 50 will be posted.')
+    warning(`More than 50 comments detected. Keeping ${kept.size} already posted comments and posting ${budget} of the ${comments.length} new ones.`)
     comments.length = budget
   }
   const outdated = posted.own.filter((id) => !kept.has(id) && !posted.replied.has(id))

@@ -411,7 +411,7 @@ describe('commentReconciliation', () => {
     const issues = Array.from({ length: 55 }, (_, index) => issueAt(index + 1))
     const calls = await run([], issues, 60)
     expect(calls.posted[0]).toHaveLength(50)
-    expect(warnings).toHaveBeenCalledWith('More than 50 comments detected. Only the first 50 will be posted.')
+    expect(warnings).toHaveBeenCalledWith('More than 50 comments detected. Keeping 0 already posted comments and posting 50 of the 55 new ones.')
   })
 
   it('does not warn about exactly 50 comments', async () => {
@@ -427,7 +427,7 @@ describe('commentReconciliation', () => {
     const calls = await run(existing, issues, 60)
     expect(calls.posted).toStrictEqual([[expect.objectContaining({ line: 49 }), expect.objectContaining({ line: 50 })]])
     expect(calls.deleted).toStrictEqual([])
-    expect(warnings).toHaveBeenCalled()
+    expect(warnings).toHaveBeenCalledWith('More than 50 comments detected. Keeping 48 already posted comments and posting 2 of the 7 new ones.')
   })
 
   it('posts nothing when the comments it keeps already fill the 50 comment cap', async () => {
@@ -436,7 +436,7 @@ describe('commentReconciliation', () => {
     const calls = await run(existing, issues, 60)
     expect(calls.posted).toStrictEqual([])
     expect(calls.deleted).toStrictEqual([])
-    expect(warnings).toHaveBeenCalled()
+    expect(warnings).toHaveBeenCalledWith('More than 50 comments detected. Keeping 50 already posted comments and posting 0 of the 5 new ones.')
   })
 })
 
