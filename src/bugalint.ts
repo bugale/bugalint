@@ -402,12 +402,13 @@ export function isCommentableIssue(issue: Issue, diffLines: DiffLines, analysisP
   return issueLines(issue.line, issue.eline).every((line) => lines?.[line] != null)
 }
 
-export function failOnIssues(issues: Iterable<Issue>, toolName: string, analysisPath: string, prDiff?: string): void {
-  let failing = [...issues]
-  if (prDiff != null) {
-    const diffLines = parseDiffLines(prDiff)
-    failing = failing.filter((issue) => isNewIssue(issue, diffLines, analysisPath))
-  }
+export function filterNewIssues(issues: Iterable<Issue>, prDiff: string, analysisPath: string): Issue[] {
+  const diffLines = parseDiffLines(prDiff)
+  return [...issues].filter((issue) => isNewIssue(issue, diffLines, analysisPath))
+}
+
+export function failOnIssues(issues: Iterable<Issue>, toolName: string): void {
+  const failing = [...issues]
   if (failing.length > 0) {
     throw new Error(`${toolName} found ${failing.length} issues`)
   }

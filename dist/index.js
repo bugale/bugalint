@@ -29941,6 +29941,7 @@ exports.getPrDiff = getPrDiff;
 exports.parseDiffLines = parseDiffLines;
 exports.isNewIssue = isNewIssue;
 exports.isCommentableIssue = isCommentableIssue;
+exports.filterNewIssues = filterNewIssues;
 exports.failOnIssues = failOnIssues;
 exports.createSummary = createSummary;
 const github_1 = __nccwpck_require__(3228);
@@ -30285,12 +30286,12 @@ function isCommentableIssue(issue, diffLines, analysisPath) {
     const lines = diffLines[normalizePath(issue.path, analysisPath)];
     return issueLines(issue.line, issue.eline).every((line) => lines?.[line] != null);
 }
-function failOnIssues(issues, toolName, analysisPath, prDiff) {
-    let failing = [...issues];
-    if (prDiff != null) {
-        const diffLines = parseDiffLines(prDiff);
-        failing = failing.filter((issue) => isNewIssue(issue, diffLines, analysisPath));
-    }
+function filterNewIssues(issues, prDiff, analysisPath) {
+    const diffLines = parseDiffLines(prDiff);
+    return [...issues].filter((issue) => isNewIssue(issue, diffLines, analysisPath));
+}
+function failOnIssues(issues, toolName) {
+    const failing = [...issues];
     if (failing.length > 0) {
         throw new Error(`${toolName} found ${failing.length} issues`);
     }
@@ -32264,7 +32265,7 @@ async function run() {
         const comment = (0, core_1.getBooleanInput)('comment');
         const summary = (0, core_1.getBooleanInput)('summary');
         const fail = (0, core_1.getBooleanInput)('fail');
-        const failOnlyNew = (0, core_1.getBooleanInput)('failOnlyNew');
+        const onlyNew = (0, core_1.getBooleanInput)('onlyNew');
         const toolName = (0, core_1.getInput)('toolName');
         const inputFormat = (0, core_1.getInput)('inputFormat');
         const inputRegex = (0, core_1.getInput)('inputRegex');
@@ -32276,27 +32277,34 @@ async function run() {
         const raw = (0, fs_1.readFileSync)(inputFile, 'utf-8');
         const input = inputFormat === 'diff' ? raw : raw.replace(/\r/g, '');
         (0, core_1.debug)(`input: ${input}`);
-        const output = (0, bugalint_1.generateSarif)(parser(input), toolName, analysisPath);
+        const prNumber = github_1.context.payload.pull_request?.number;
+        let pullRequest;
+        const getPullRequest = async () => {
+            if (prNumber == null) {
+                throw new Error('No pull request number found.');
+            }
+            pullRequest ??= [prNumber, await (0, bugalint_1.getPrDiff)(githubToken, github_1.context.repo.owner, github_1.context.repo.repo, prNumber)];
+            return pullRequest;
+        };
+        let issues = [...parser(input)];
+        if (onlyNew) {
+            const [, prDiff] = await getPullRequest();
+            issues = (0, bugalint_1.filterNewIssues)(issues, prDiff, analysisPath);
+        }
+        const output = (0, bugalint_1.generateSarif)(issues, toolName, analysisPath);
         (0, core_1.info)(`SARIF output: ${JSON.stringify(output, null, 2)}`);
         if (sarif !== '') {
             (0, fs_1.writeFileSync)(sarif, JSON.stringify(output));
         }
-        let prDiff;
-        if (comment || (fail && failOnlyNew)) {
-            const prNumber = github_1.context.payload.pull_request?.number;
-            if (prNumber == null) {
-                throw new Error('No pull request number found.');
-            }
-            prDiff = await (0, bugalint_1.getPrDiff)(githubToken, github_1.context.repo.owner, github_1.context.repo.repo, prNumber);
-            if (comment) {
-                await (0, bugalint_1.addComments)(parser(input), prDiff, githubToken, toolName, github_1.context.repo.owner, github_1.context.repo.repo, prNumber, analysisPath);
-            }
+        if (comment) {
+            const [pullNumber, prDiff] = await getPullRequest();
+            await (0, bugalint_1.addComments)(issues, prDiff, githubToken, toolName, github_1.context.repo.owner, github_1.context.repo.repo, pullNumber, analysisPath);
         }
         if (summary) {
-            await (0, bugalint_1.createSummary)(parser(input), toolName, analysisPath);
+            await (0, bugalint_1.createSummary)(issues, toolName, analysisPath);
         }
         if (fail) {
-            (0, bugalint_1.failOnIssues)(parser(input), toolName, analysisPath, failOnlyNew ? prDiff : undefined);
+            (0, bugalint_1.failOnIssues)(issues, toolName);
         }
     }
     catch (error) {

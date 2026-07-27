@@ -21,8 +21,8 @@ inputs:
     description: 'Should the action fail the step if issues are found'
     required: false
     default: 'true'
-  failOnlyNew:
-    description: 'Should the action fail only on issues found on lines added in the pull request'
+  onlyNew:
+    description: 'Should the action consider only issues found on lines added in the pull request, ignoring all others everywhere'
     required: false
     default: 'false'
   toolName:

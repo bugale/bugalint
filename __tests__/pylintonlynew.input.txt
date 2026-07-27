@@ -1,0 +1,67 @@
+[
+  {
+    "type": "convention",
+    "module": "test",
+    "obj": "",
+    "line": 4,
+    "column": 0,
+    "endLine": null,
+    "endColumn": null,
+    "path": "test.py",
+    "symbol": "missing-final-newline",
+    "message": "Final newline missing",
+    "message-id": "C0304"
+  },
+  {
+    "type": "usage",
+    "module": "test",
+    "obj": "a",
+    "line": 3,
+    "column": 0,
+    "endLine": 3,
+    "endColumn": 5,
+    "path": "test.py",
+    "symbol": "missing-function-docstring",
+    "message": "Missing function or method docstring",
+    "message-id": "C0116"
+  },
+  {
+    "type": "refactor",
+    "module": "test",
+    "obj": "a",
+    "line": 3,
+    "column": 0,
+    "endLine": 3,
+    "endColumn": 5,
+    "path": "test.py",
+    "symbol": "missing-function-docstring",
+    "message": "Missing function or method docstring",
+    "message-id": "C0116"
+  },
+  {
+    "type": "warning",
+    "module": "test",
+    "obj": "",
+    "line": 1,
+    "column": 0,
+    "endLine": 1,
+    "endColumn": 10,
+    "path": "test.py",
+    "symbol": "unused-import",
+    "message": "Unused import sys",
+    "message-id": "W0611"
+  },
+  {
+    "type": "error",
+    "module": "test",
+    "obj": "",
+    "line": 1,
+    "column": 0,
+    "endLine": 1,
+    "endColumn": 10,
+    "path": "test.py",
+    "symbol": "unused-import",
+    "message": "Unused import sys",
+    "message-id": "W0611"
+  }
+]
