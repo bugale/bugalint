@@ -1,4 +1,4 @@
-import type { Log, ReportingDescriptor, Result } from 'sarif'
+import type { Log, Region, ReportingDescriptor, Result } from 'sarif'
 import { getOctokit } from '@actions/github'
 import { debug, warning, summary } from '@actions/core'
 import path from 'path'
@@ -15,6 +15,7 @@ interface Issue {
   col?: number
   eline?: number
   ecol?: number
+  fix?: string
 }
 
 export type Parser = (input: string) => Generator<Issue>
@@ -59,6 +60,23 @@ function* parsePylint(input: string): Generator<Issue> {
   }
 }
 
+function parseSarifFix(result: Result, region?: Region): string | undefined {
+  const replacement = result.fixes?.[0]?.artifactChanges?.[0]?.replacements?.[0]
+  const text = replacement?.insertedContent?.text
+  if (replacement == null || text == null || region?.startLine == null) {
+    return undefined
+  }
+  const deleted = replacement.deletedRegion
+  const endLine = region.endLine ?? region.startLine
+  if (deleted.startLine !== region.startLine || (deleted.startColumn ?? 1) !== 1) {
+    return undefined
+  }
+  if (deleted.endColumn == null) {
+    return (deleted.endLine ?? deleted.startLine) === endLine ? text : undefined
+  }
+  return deleted.endColumn === 1 && deleted.endLine === endLine + 1 ? text.replace(/\n$/, '') : undefined
+}
+
 function* parseSarif(input: string): Generator<Issue> {
   const log: Log = JSON.parse(input)
   for (const run of log.runs) {
@@ -66,16 +84,18 @@ function* parseSarif(input: string): Generator<Issue> {
       continue
     }
     for (const issue of run.results) {
+      const region = issue.locations?.[0]?.physicalLocation?.region
       yield {
         id: issue.ruleId,
         sym: issue.ruleIndex != null ? run.tool.driver.rules?.[issue.ruleIndex]?.name : undefined,
         msg: issue.message.text,
         level: issue.level,
         path: issue.locations?.[0]?.physicalLocation?.artifactLocation?.uri,
-        line: issue.locations?.[0]?.physicalLocation?.region?.startLine,
-        col: issue.locations?.[0]?.physicalLocation?.region?.startColumn,
-        eline: issue.locations?.[0]?.physicalLocation?.region?.endLine,
-        ecol: issue.locations?.[0]?.physicalLocation?.region?.endColumn
+        line: region?.startLine,
+        col: region?.startColumn,
+        eline: region?.endLine,
+        ecol: region?.endColumn,
+        fix: parseSarifFix(issue, region)
       }
     }
   }
@@ -119,12 +139,13 @@ export function generateSarif(issues: Iterable<Issue>, identifier: string, analy
       rulesIndices[issue.id] = rules.length
       rules.push({ id: issue.id, name: issue.sym })
     }
+    const uri = issue.path != null ? normalizePath(issue.path, analysisPath) : undefined
     results.push({
       message: { text: issue.msg ?? undefined },
       locations: [
         {
           physicalLocation: {
-            artifactLocation: { uri: issue.path != null ? normalizePath(issue.path, analysisPath) : undefined },
+            artifactLocation: { uri },
             region:
               issue.line != null || issue.col != null || issue.eline != null || issue.ecol != null
                 ? {
@@ -137,6 +158,19 @@ export function generateSarif(issues: Iterable<Issue>, identifier: string, analy
           }
         }
       ],
+      fixes:
+        issue.fix != null && uri != null && issue.line != null
+          ? [
+              {
+                artifactChanges: [
+                  {
+                    artifactLocation: { uri },
+                    replacements: [{ deletedRegion: { startLine: issue.line, endLine: issue.eline ?? issue.line }, insertedContent: { text: issue.fix } }]
+                  }
+                ]
+              }
+            ]
+          : undefined,
       level: issue.level ?? undefined,
       ruleId: issue.id ?? issue.sym ?? undefined,
       ruleIndex: issue.id != null ? rulesIndices[issue.id] : undefined
@@ -159,6 +193,15 @@ export function getKnownParser(identifier: string): Parser {
 
 export function getRegexParser(regex: RegExp, levelMap?: Record<string, Result.level>): Parser {
   return (input: string) => parseRegex(input, regex, levelMap)
+}
+
+function buildCommentBody(commentTag: string, identifier: string, issue: Issue): string {
+  const body = `${commentTag}\n**${issue.msg}**\n[${[issue.level, identifier, issue.id, issue.sym].filter((n) => n).join(':')}]`
+  if (issue.fix == null) {
+    return body
+  }
+  const fence = '`'.repeat(Math.max(3, ...Array.from(issue.fix.matchAll(/`+/g), (m) => m[0].length + 1)))
+  return `${body}\n${fence}suggestion\n${issue.fix === '' ? '' : `${issue.fix}\n`}${fence}`
 }
 
 export async function addComments(
@@ -206,7 +249,7 @@ export async function addComments(
       start_side: 'RIGHT',
       line: endLine,
       start_line: endLine === issue.line ? undefined : issue.line,
-      body: `${commentTag}\n**${issue.msg}**\n[${[issue.level, identifier, issue.id, issue.sym].filter((n) => n).join(':')}]`
+      body: buildCommentBody(commentTag, identifier, issue)
     }
     debug(`Generating comment ${JSON.stringify(args)}`)
     comments.push(args)
@@ -297,5 +340,6 @@ export async function createSummary(issues: Iterable<Issue>, identifier: string,
 }
 
 export const _testExports = {
-  normalizePath
+  normalizePath,
+  buildCommentBody
 }
