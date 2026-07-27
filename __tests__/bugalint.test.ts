@@ -1,5 +1,6 @@
 import '@microsoft/jest-sarif'
 import { readFileSync } from 'fs'
+import type { Region } from 'sarif'
 import { generateSarif, getKnownParser, getRegexParser, parseAddedLines, isNewIssue, failOnIssues, _testExports, type Parser } from '../src/bugalint'
 
 describe('fullConversion', () => {
@@ -11,6 +12,7 @@ describe('fullConversion', () => {
     ['yamllint', getKnownParser('yamllint'), '.'],
     ['ghalint', getKnownParser('ghalint'), '.'],
     ['sarif', getKnownParser('sarif'), '.'],
+    ['sariffix', getKnownParser('sarif'), '.'],
     ['flake8subpath', getKnownParser('flake8'), 'A\\B'],
     ['noissues', getKnownParser('flake8'), '.'],
     [
@@ -88,6 +90,84 @@ index 1111111..2222222 100644
         failOnIssues([{ path: 'A/B/test.py', line: 1 }], 'test', '.', diff)
       }).not.toThrow()
     })
+  })
+})
+
+describe('commentBody', () => {
+  const tag = '<!-- bugale/bugalint test -->'
+  const header = `${tag}\n**Message**\n[warning:test]`
+  const issue = { level: 'warning' as const, msg: 'Message' }
+  const body = (fix?: string): string => _testExports.buildCommentBody(tag, 'test', fix === undefined ? issue : { ...issue, fix })
+
+  it('omits the suggestion when the issue has no fix', () => {
+    expect(body()).toBe(header)
+  })
+
+  it('appends the suggestion after the identifier line', () => {
+    expect(body('x = 1')).toBe(`${header}\n\`\`\`suggestion\nx = 1\n\`\`\``)
+  })
+
+  it('keeps a multi line fix verbatim', () => {
+    expect(body('def f():\n    return 1')).toBe(`${header}\n\`\`\`suggestion\ndef f():\n    return 1\n\`\`\``)
+  })
+
+  it('renders an empty fix as an empty suggestion, which deletes the lines', () => {
+    expect(body('')).toBe(`${header}\n\`\`\`suggestion\n\`\`\``)
+  })
+
+  it('preserves a trailing newline, which keeps a trailing empty line', () => {
+    expect(body('x = 1\n')).toBe(`${header}\n\`\`\`suggestion\nx = 1\n\n\`\`\``)
+  })
+
+  it('uses a fence longer than the longest backtick run in the fix', () => {
+    expect(body('doc = "```"')).toBe(`${header}\n\`\`\`\`suggestion\ndoc = "\`\`\`"\n\`\`\`\``)
+  })
+})
+
+describe('sarifFix', () => {
+  const fixOf = (region: Region, deletedRegion: Region, text: string): string | undefined => {
+    const log = {
+      version: '2.1.0',
+      runs: [
+        {
+          tool: { driver: { name: 'test' } },
+          results: [
+            {
+              message: { text: 'Message' },
+              locations: [{ physicalLocation: { artifactLocation: { uri: 'test.py' }, region } }],
+              fixes: [{ artifactChanges: [{ artifactLocation: { uri: 'test.py' }, replacements: [{ deletedRegion, insertedContent: { text } }] }] }]
+            }
+          ]
+        }
+      ]
+    }
+    return [...getKnownParser('sarif')(JSON.stringify(log))][0].fix
+  }
+
+  it('takes the text of a region ending at the end of the last reported line', () => {
+    expect(fixOf({ startLine: 3, endLine: 4 }, { startLine: 3, endLine: 4 }, 'a\nb')).toBe('a\nb')
+    expect(fixOf({ startLine: 3 }, { startLine: 3 }, 'a')).toBe('a')
+  })
+
+  it('drops the line terminator of a region ending at the beginning of the following line', () => {
+    expect(fixOf({ startLine: 3, endLine: 4 }, { startLine: 3, startColumn: 1, endLine: 5, endColumn: 1 }, 'a\nb\n')).toBe('a\nb')
+    expect(fixOf({ startLine: 3 }, { startLine: 3, startColumn: 1, endLine: 4, endColumn: 1 }, 'a\n')).toBe('a')
+  })
+
+  it('keeps a trailing empty line of both forms', () => {
+    expect(fixOf({ startLine: 3, endLine: 4 }, { startLine: 3, endLine: 4 }, 'a\nb\n')).toBe('a\nb\n')
+    expect(fixOf({ startLine: 3, endLine: 4 }, { startLine: 3, startColumn: 1, endLine: 5, endColumn: 1 }, 'a\nb\n\n')).toBe('a\nb\n')
+  })
+
+  it('ignores a fix replacing a part of a line', () => {
+    expect(fixOf({ startLine: 3 }, { startLine: 3, startColumn: 5, endLine: 3, endColumn: 7 }, '===')).toBeUndefined()
+    expect(fixOf({ startLine: 3 }, { startLine: 3, endLine: 3, endColumn: 10 }, 'a')).toBeUndefined()
+  })
+
+  it('ignores a fix replacing lines other than the reported ones', () => {
+    expect(fixOf({ startLine: 3 }, { startLine: 3, endLine: 4 }, 'a')).toBeUndefined()
+    expect(fixOf({ startLine: 3 }, { startLine: 4 }, 'a')).toBeUndefined()
+    expect(fixOf({ startLine: 3, endLine: 4 }, { startLine: 3, startColumn: 1, endLine: 4, endColumn: 1 }, 'a\n')).toBeUndefined()
   })
 })
 

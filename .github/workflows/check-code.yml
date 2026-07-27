@@ -80,6 +80,7 @@ jobs:
           - {linter: 'yamllint', format: 'yamllint', regex: '', levelMap: '', analysisPath: '.'}
           - {linter: 'ghalint', format: 'ghalint', regex: '', levelMap: '', analysisPath: '.'}
           - {linter: 'sarif', format: 'sarif', regex: '', levelMap: '', analysisPath: '.'}
+          - {linter: 'sariffix', format: 'sarif', regex: '', levelMap: '', analysisPath: '.'}
           - {linter: 'flake8subpath', format: 'flake8', regex: '', levelMap: '', analysisPath: 'A\B'}
           - {linter: 'noissues', format: 'flake8', regex: '', levelMap: '', analysisPath: '.', outcome: 'success'}
           - {linter: 'noissues', format: 'flake8', regex: '', levelMap: '', analysisPath: '.', fail: 'false', outcome: 'success', name: 'noissues-nofail'}

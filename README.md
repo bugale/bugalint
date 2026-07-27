@@ -38,7 +38,8 @@ steps:
 - `sarif`: The path to the output SARIF file this action should generate. If not specified, the action will generate a `sarif.json` file in the root of the
   repository. If set to an empty string, the action will not write a SARIF file. The SARIF is always generated and printed to the workflow log.
 
-- `comment`: Set to true to comment on the PR with the issues. If set to false or ommitted, the action will not comment on the PR.
+- `comment`: Set to true to comment on the PR with the issues. If set to false or ommitted, the action will not comment on the PR. Issues that carry a fix are
+  commented as [suggested changes](#suggested-changes).
 
 - `summary`: True by default - generates a markdown summary for the job. If set to false, the action will not generate a markdown summary.
 
@@ -85,7 +86,7 @@ This action supports a bunch of linter output formats, for which no `inputRegex`
 - `ghalint`: The format of [ghallint](https://github.com/suzuki-shunsuke/ghalint/cmd/ghalint/) linter's parsable output.
 
 - `SARIF`: A [standard format for static analysis](https://sarifweb.azurewebsites.net/). This is useful if you already have a SARIF file and want to create a summary
-  for it, or create comments on the PR.
+  for it, or create comments on the PR. This is also the only input format that can carry [suggested changes](#suggested-changes).
 
 #### Input Regex Named Groups
 
@@ -112,6 +113,48 @@ The supported named groups are:
 - `eline`: The end line on which the issue was reported.
 
 - `ecol`: The end column on which the issue was reported.
+
+### Suggested Changes
+
+When an issue carries a fix, the comment posted on the pull request contains it as a
+[suggested change](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/reviewing-changes-in-pull-requests/incorporating-feedback-in-your-pull-request),
+which a reviewer can apply in one click. Fixes are read from the first `replacements` entry of the first `artifactChanges` entry of the result's first `fixes`
+entry, so they are only available when `inputFormat` is `sarif`:
+
+```json
+{
+  "message": { "text": "Not formatted correctly" },
+  "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "test.py" }, "region": { "startLine": 3, "endLine": 4 } } }],
+  "fixes": [
+    {
+      "artifactChanges": [
+        {
+          "artifactLocation": { "uri": "test.py" },
+          "replacements": [{ "deletedRegion": { "startLine": 3, "endLine": 4 }, "insertedContent": { "text": "def f():\n    return 1" } }]
+        }
+      ]
+    }
+  ]
+}
+```
+
+GitHub replaces whole lines, so a fix is rendered only when its `deletedRegion` covers exactly the lines of the result's own region, which is what the comment
+is anchored to. Following the SARIF specification, in which an absent `endColumn` means the end of the text of `endLine`, both of the usual ways of writing
+such a region are accepted:
+
+- `{ "startLine": 3, "endLine": 4 }` covers the text of lines 3 to 4 without the line terminator ending line 4, so `insertedContent.text` is the new text of
+  those lines and must not end with a newline.
+
+- `{ "startLine": 3, "startColumn": 1, "endLine": 5, "endColumn": 1 }` covers the same lines including the line terminator ending line 4, so
+  `insertedContent.text` must end with a newline. Exactly one is removed when rendering the suggestion.
+
+Any other `deletedRegion`, such as one replacing a part of a line or lines other than the reported ones, cannot be rendered as a suggestion. Such a fix is
+ignored, and the issue is commented on without one.
+
+The text itself is never trimmed beyond the single line terminator described above, so an additional trailing newline is rendered as a trailing empty line.
+An empty `insertedContent.text` renders as an empty suggestion, which deletes the lines. A replacement consisting of a single empty line is written exactly the
+same way in either form, so it is indistinguishable from a deletion and cannot be expressed. A producer that needs one should widen the replacement to include
+a neighbouring line.
 
 ### Example With Custom Regex
 
