@@ -29947,6 +29947,7 @@ exports.failOnIssues = failOnIssues;
 exports.createSummary = createSummary;
 const github_1 = __nccwpck_require__(3228);
 const core_1 = __nccwpck_require__(7484);
+const crypto_1 = __nccwpck_require__(6982);
 const path_1 = __importDefault(__nccwpck_require__(6928));
 const parse_diff_1 = __importDefault(__nccwpck_require__(2673));
 function* parseRegex(input, regex, levelMap) {
@@ -30188,28 +30189,60 @@ function getRegexParser(regex, levelMap) {
 function getDiffParser(message) {
     return (input) => parseFormatDiff(input, message === '' ? defaultDiffMessage : message);
 }
-function buildCommentBody(commentTag, identifier, issue) {
-    const body = `${commentTag}\n**${issue.msg}**\n[${[issue.level, identifier, issue.id, issue.sym].filter((n) => n).join(':')}]`;
+function buildCommentContent(identifier, issue) {
+    const content = `**${issue.msg}**\n[${[issue.level, identifier, issue.id, issue.sym].filter((n) => n).join(':')}]`;
     if (issue.fix == null) {
-        return body;
+        return content;
     }
     const fence = '`'.repeat(Math.max(3, ...Array.from(issue.fix.join('\n').matchAll(/`+/g), (m) => m[0].length + 1)));
-    return `${body}\n${fence}suggestion\n${joinFixLines(issue.fix)}${fence}`;
+    return `${content}\n${fence}suggestion\n${joinFixLines(issue.fix)}${fence}`;
 }
-async function addComments(issues, prDiff, githubToken, identifier, owner, repo, prNumber, analysisPath) {
-    /* eslint camelcase: ["error", {allow: ['^pull_number$', '^comment_id$', '^start_side$', '^start_line$']}] */
-    const octokit = (0, github_1.getOctokit)(githubToken);
-    (0, core_1.debug)('Deleting old comments');
-    const commentTag = `<!-- bugale/bugalint ${identifier} -->`;
+function buildFingerprint(content) {
+    return (0, crypto_1.createHash)('sha256').update(content).digest('hex').slice(0, 16);
+}
+function buildCommentTag(identifier, fingerprint) {
+    return `<!-- bugale/bugalint ${identifier} ${fingerprint} -->`;
+}
+function buildComment(identifier, issue) {
+    const content = buildCommentContent(identifier, issue);
+    const fingerprint = buildFingerprint(content);
+    return { fingerprint, body: `${buildCommentTag(identifier, fingerprint)}\n${content}` };
+}
+function buildCommentTagRegex(identifier) {
+    return new RegExp(`^<!-- bugale/bugalint ${identifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?: (?<fingerprint>[0-9a-f]+))? -->(?:\r?\n|$)`);
+}
+function buildCommentKey(commentPath, line, endLine, fingerprint) {
+    return [commentPath, line, endLine, fingerprint].join('\u0000');
+}
+async function listPostedComments(octokit, identifier, owner, repo, prNumber) {
+    const tagRegex = buildCommentTagRegex(identifier);
+    const posted = { own: [], replied: new Set(), byKey: new Map() };
     for await (const { data: comments } of octokit.paginate.iterator(octokit.rest.pulls.listReviewComments, { owner, repo, pull_number: prNumber })) {
-        for (const c of comments) {
-            if (c?.id != null && c?.body?.includes(commentTag)) {
-                (0, core_1.debug)(`Deleting comment ${c?.id}`);
-                await octokit.rest.pulls.deleteReviewComment({ owner, repo, comment_id: c?.id });
+        for (const comment of comments) {
+            if (comment?.in_reply_to_id != null) {
+                posted.replied.add(comment.in_reply_to_id);
             }
+            const match = comment?.id != null ? tagRegex.exec(comment?.body ?? '') : null;
+            if (match == null) {
+                continue;
+            }
+            posted.own.push(comment.id);
+            const fingerprint = match.groups?.fingerprint;
+            if (fingerprint == null || comment.line == null) {
+                continue;
+            }
+            const key = buildCommentKey(comment.path, comment.start_line ?? comment.line, comment.line, fingerprint);
+            posted.byKey.set(key, [...(posted.byKey.get(key) ?? []), comment.id]);
         }
     }
+    (0, core_1.debug)(`Found ${posted.own.length} comments of ${identifier}, ${posted.byKey.size} of which carry a fingerprint`);
+    return posted;
+}
+async function addComments(issues, prDiff, githubToken, identifier, owner, repo, prNumber, analysisPath) {
+    const octokit = (0, github_1.getOctokit)(githubToken);
+    const posted = await listPostedComments(octokit, identifier, owner, repo, prNumber);
     const diffLines = parseDiffLines(prDiff);
+    const kept = new Set();
     const comments = [];
     for (const issue of issues) {
         (0, core_1.debug)(`Processing issue on ${issue.path}:${issue.line}`);
@@ -30221,29 +30254,44 @@ async function addComments(issues, prDiff, githubToken, identifier, owner, repo,
             (0, core_1.debug)(`Skipping issue on ${issue.path}:${issue.line} because GitHub rejects comments spanning lines outside the PR diff`);
             continue;
         }
-        if (comments.length >= 50) {
-            (0, core_1.warning)('More than 50 comments detected. Only the first 50 will be posted.');
-            break;
-        }
+        const commentPath = normalizePath(issue.path, analysisPath);
         const endLine = issue.eline ?? issue.line;
+        const { fingerprint, body } = buildComment(identifier, issue);
+        const existing = posted.byKey.get(buildCommentKey(commentPath, issue.line, endLine, fingerprint))?.shift();
+        if (existing != null) {
+            (0, core_1.debug)(`Keeping comment ${existing} of the issue on ${issue.path}:${issue.line}`);
+            kept.add(existing);
+            continue;
+        }
         const args = {
-            path: normalizePath(issue.path, analysisPath),
+            path: commentPath,
             side: 'RIGHT',
             start_side: 'RIGHT',
             line: endLine,
             start_line: endLine === issue.line ? undefined : issue.line,
-            body: buildCommentBody(commentTag, identifier, issue)
+            body
         };
         (0, core_1.debug)(`Generating comment ${JSON.stringify(args)}`);
         comments.push(args);
     }
+    const budget = Math.max(0, 50 - kept.size);
+    if (comments.length > budget) {
+        (0, core_1.warning)(`More than 50 comments detected. Keeping ${kept.size} already posted comments and posting ${budget} of the ${comments.length} new ones.`);
+        comments.length = budget;
+    }
+    const outdated = posted.own.filter((id) => !kept.has(id) && !posted.replied.has(id));
     if (comments.length === 0) {
         (0, core_1.debug)('No comments to post');
-        return;
     }
-    (0, core_1.debug)('Sending comments');
-    await octokit.rest.pulls.createReview({ owner, repo, pull_number: prNumber, event: 'COMMENT', comments });
-    (0, core_1.debug)('Sent comments');
+    else {
+        (0, core_1.debug)('Sending comments');
+        await octokit.rest.pulls.createReview({ owner, repo, pull_number: prNumber, event: 'COMMENT', comments });
+        (0, core_1.debug)('Sent comments');
+    }
+    for (const id of outdated) {
+        (0, core_1.debug)(`Deleting comment ${id}`);
+        await octokit.rest.pulls.deleteReviewComment({ owner, repo, comment_id: id });
+    }
 }
 async function getPrDiff(githubToken, owner, repo, prNumber) {
     const octokit = (0, github_1.getOctokit)(githubToken);
@@ -30329,7 +30377,7 @@ async function createSummary(issues, identifier, analysisPath) {
 }
 exports._testExports = {
     normalizePath,
-    buildCommentBody
+    buildComment
 };
 
 

@@ -40,7 +40,7 @@ steps:
 
 - `comment`: Set to true to comment on the PR with the issues. If set to false or ommitted, the action will not comment on the PR. Issues that carry a fix are
   commented as [suggested changes](#suggested-changes). An issue is commented on only if every line it spans is part of the pull request's diff, as GitHub
-  rejects comments anchored outside it.
+  rejects comments anchored outside it. Comments are [reconciled](#comment-reconciliation) between runs rather than recreated.
 
 - `summary`: True by default - generates a markdown summary for the job. If set to false, the action will not generate a markdown summary.
 
@@ -205,6 +205,33 @@ therefore expressible only in the second form, as a text of exactly one newline 
 cannot be told apart from a deletion. A producer restricted to the first form should widen the replacement to include a neighbouring line.
 
 The fixes Bugalint writes out always use the second form, so a fix survives being read back from a SARIF file that Bugalint itself generated.
+
+### Comment Reconciliation
+
+Every comment Bugalint posts starts with an invisible HTML comment carrying the `toolName` and a fingerprint of the rest of the comment: the message, the level,
+the rule identifiers and the whole suggestion. On every run Bugalint lists the pull request's review comments, and for each issue it would comment on it looks
+for one of its own comments anchored on the same file and the same line range and carrying the same fingerprint:
+
+- A comment that matches an issue is left completely alone. It is neither deleted nor posted again, so pushing to a pull request no longer re-notifies every
+  reviewer about every issue that did not change, and links to such a comment keep working.
+
+- An issue matching no comment gets a new one.
+
+- A comment of the same `toolName` matching no issue is deleted, which is what makes a fixed issue's comment go away.
+
+The line range is compared to the line GitHub currently reports for the comment rather than the one it was created on. GitHub re-anchors a comment as the pull
+request is pushed to, so a comment that merely moved is still recognized. The fingerprint itself covers no line number, so it does not change when lines are
+added above the issue. It does cover the suggestion, so an issue whose fix changed is a different comment: the old one is deleted and a new one is posted.
+
+A comment that anyone replied to is never deleted, so a discussion is not orphaned when the issue that started it is fixed. Comments of other tools, of other
+`toolName`s and of humans are never touched.
+
+Comments posted by versions of Bugalint older than this feature carry a tag with no fingerprint, so they can never match. On the first run after the upgrade
+each of them is deleted and its issue is commented on again in the new format, once per pull request.
+
+At most 50 comments carrying a current issue are kept on a pull request. The comments that are kept count against that limit, so consecutive runs cannot
+accumulate 50 comments each: when 48 comments are kept, only 2 new ones are posted. Comments kept only because someone replied to them are not counted, as
+they are discussions rather than reports.
 
 ### Example With Custom Regex
 
