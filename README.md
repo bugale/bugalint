@@ -67,6 +67,9 @@ steps:
   root. This is required only when the linter's output contains paths that are relative but not to the repository's root, for which this action will
   re-relativize them.
 
+- `message`: An additional message to append to the message of every issue found. Input formats that carry no message of their own, currently only `diff`, end
+  up with this as their whole message. Empty by default, which leaves the issues of such a format with no message at all.
+
 - `githubToken`: Relevant only for "comment" mode. The GitHub token to use to post the comment. If not specified, the action will use the action's token.
 
 #### Natively Supported Linter Output Formats
@@ -88,7 +91,41 @@ This action supports a bunch of linter output formats, for which no `inputRegex`
 - `ghalint`: The format of [ghallint](https://github.com/suzuki-shunsuke/ghalint/cmd/ghalint/) linter's parsable output.
 
 - `SARIF`: A [standard format for static analysis](https://sarifweb.azurewebsites.net/). This is useful if you already have a SARIF file and want to create a summary
-  for it, or create comments on the PR. This is also the only input format that can carry [suggested changes](#suggested-changes).
+  for it, or create comments on the PR. It can carry [suggested changes](#suggested-changes).
+
+- `diff`: The output of `git diff`, which turns [any formatter that rewrites files in place](#formatter-diffs) into a linter reporting suggested changes.
+
+#### Formatter Diffs
+
+The `diff` input format turns the output of `git diff` into issues, which makes any formatter that can rewrite files in place a linter reporting
+[suggested changes](#suggested-changes):
+
+```yaml
+- run: clang-format -i $(git ls-files '*.cpp')
+- run: git diff > clang-format.diff
+- uses: bugale/bugalint@v1
+  with:
+    inputFile: 'clang-format.diff'
+    toolName: 'clang-format'
+    inputFormat: 'diff'
+    message: 'Not formatted according to .clang-format'
+    comment: true
+```
+
+Every contiguous run of changed lines becomes one issue, rather than every hunk, so the context lines `git diff` prints around each change do not widen the
+reported range. Issues are anchored on the lines of the old side of the diff, which are the lines of the committed file that the pull request shows and that
+comments can be attached to, while the new side becomes the fix. A run that only adds lines has no line of its own to anchor to, so it is extended to a
+neighbouring line, preferring the preceding one, whose content is repeated in the fix. The marker `git diff` prints for a file that does not end with a newline
+is ignored, so the last line of such a file is reported like any other. A change of that terminator alone leaves the old and the new lines identical, so the
+issue is reported without a fix rather than with a suggestion replacing a line with itself. A run replacing lines with nothing deletes them, while one replacing
+them with an empty line blanks them, which is what a formatter stripping the whitespace of a blank line produces. GitHub cannot render a suggestion whose whole
+content is one empty line, so such a run is extended to a neighbouring line as well, and is reported without a fix when there is no line to extend to.
+
+Note that a formatter that fails without writing anything produces an empty diff, which is indistinguishable from a formatter that found nothing to fix. The
+step running the formatter should therefore fail the job by itself.
+
+Unlike the other input formats, a diff is read byte for byte, since a carriage return in it may be content rather than a line terminator. A repository storing
+its files with CRLF therefore gets suggestions with CRLF in them, instead of suggestions that silently rewrite the line endings of every line they touch.
 
 #### Input Regex Named Groups
 
@@ -120,8 +157,8 @@ The supported named groups are:
 
 When an issue carries a fix, the comment posted on the pull request contains it as a
 [suggested change](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/reviewing-changes-in-pull-requests/incorporating-feedback-in-your-pull-request),
-which a reviewer can apply in one click. Fixes are read from the first `replacements` entry of the first `artifactChanges` entry of the result's first `fixes`
-entry, so they are only available when `inputFormat` is `sarif`:
+which a reviewer can apply in one click. Fixes are produced by the [`diff` input format](#formatter-diffs), and are read from the first `replacements` entry of
+the first `artifactChanges` entry of the result's first `fixes` entry when `inputFormat` is `sarif`:
 
 ```json
 {
@@ -154,9 +191,15 @@ Any other `deletedRegion`, such as one replacing a part of a line or lines other
 ignored, and the issue is commented on without one.
 
 The text itself is never trimmed beyond the single line terminator described above, so an additional trailing newline is rendered as a trailing empty line.
-An empty `insertedContent.text` renders as an empty suggestion, which deletes the lines. A replacement consisting of a single empty line is written exactly the
-same way in either form, so it is indistinguishable from a deletion and cannot be expressed. A producer that needs one should widen the replacement to include
-a neighbouring line.
+An empty `insertedContent.text` renders as an empty suggestion, which deletes the lines, in both forms. Replacing the lines with a single empty line is
+therefore expressible only in the second form, as a text of exactly one newline — in the first form that same replacement is written as an empty text, which
+cannot be told apart from a deletion. A producer restricted to the first form should widen the replacement to include a neighbouring line.
+
+GitHub itself cannot render such a replacement either: a suggestion whose whole content is one empty line is drawn, and applied, exactly like an empty one, so
+it deletes the lines instead of blanking them. A fix replacing the lines with a single empty line is therefore read and written faithfully, but is never
+commented as a suggestion. To have one commented, widen the replacement to cover a neighbouring line as well, so that its text is not a lone newline.
+
+The fixes Bugalint writes out always use the second form, so a fix survives being read back from a SARIF file that Bugalint itself generated.
 
 ### Example With Custom Regex
 

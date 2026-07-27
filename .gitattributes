@@ -1,0 +1,4 @@
+* text=auto
+
+# The carriage returns of this fixture are the content under test, so they must survive a checkout on any platform
+__tests__/diffcrlf.input.txt -text

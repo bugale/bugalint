@@ -81,7 +81,9 @@ jobs:
           - {linter: 'ghalint', format: 'ghalint', regex: '', levelMap: '', analysisPath: '.'}
           - {linter: 'sarif', format: 'sarif', regex: '', levelMap: '', analysisPath: '.'}
           - {linter: 'sariffix', format: 'sarif', regex: '', levelMap: '', analysisPath: '.'}
-          - {linter: 'flake8subpath', format: 'flake8', regex: '', levelMap: '', analysisPath: 'A\B'}
+          - {linter: 'diff', format: 'diff', regex: '', levelMap: '', analysisPath: '.', message: 'Not formatted correctly'}
+          - {linter: 'diffcrlf', format: 'diff', regex: '', levelMap: '', analysisPath: '.'}
+          - {linter: 'flake8subpath', format: 'flake8', regex: '', levelMap: '', analysisPath: 'A\B', message: 'Fix it'}
           - {linter: 'noissues', format: 'flake8', regex: '', levelMap: '', analysisPath: '.', outcome: 'success'}
           - {linter: 'noissues', format: 'flake8', regex: '', levelMap: '', analysisPath: '.', fail: 'false', outcome: 'success', name: 'noissues-nofail'}
           - {linter: 'pylint', format: 'pylint', regex: '', levelMap: '', analysisPath: '.', fail: 'false', outcome: 'success', name: 'pylint-nofail'}
@@ -111,6 +113,7 @@ jobs:
           analysisPath: ${{ matrix.run.analysisPath }}
           fail: ${{ matrix.run.fail || 'true' }}
           failOnlyNew: ${{ matrix.run.failOnlyNew || 'false' }}
+          message: ${{ matrix.run.message || '' }}
       - name: Test Outcome
         run: |
           if [ "${{ steps.run.outcome }}" != "${{ matrix.run.outcome || 'failure' }}" ];

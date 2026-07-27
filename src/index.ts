@@ -4,6 +4,13 @@ import { context } from '@actions/github'
 import { getInput, getBooleanInput, debug, info, setFailed } from '@actions/core'
 import { generateSarif, getKnownParser, getRegexParser, getPrDiff, addComments, createSummary, failOnIssues, type Parser } from '../src/bugalint'
 
+function getParser(inputFormat: string, inputRegex: string, levelMap: string, message: string): Parser {
+  if (inputFormat === '') {
+    return getRegexParser(new RegExp(inputRegex, 'gm'), message, levelMap === '' ? undefined : (JSON.parse(levelMap) as Record<string, Result.level>))
+  }
+  return getKnownParser(inputFormat, message)
+}
+
 export async function run(): Promise<void> {
   try {
     const inputFile: string = getInput('inputFile')
@@ -18,12 +25,11 @@ export async function run(): Promise<void> {
     const levelMap: string = getInput('levelMap')
     const analysisPath: string = getInput('analysisPath')
     const githubToken: string = getInput('githubToken')
+    const message: string = getInput('message')
 
-    const parser: Parser =
-      inputFormat === ''
-        ? getRegexParser(new RegExp(inputRegex, 'gm'), levelMap === '' ? undefined : (JSON.parse(levelMap) as Record<string, Result.level>))
-        : getKnownParser(inputFormat)
-    const input = readFileSync(inputFile, 'utf-8').replace(/\r/g, '')
+    const parser: Parser = getParser(inputFormat, inputRegex, levelMap, message)
+    const raw = readFileSync(inputFile, 'utf-8')
+    const input = inputFormat === 'diff' ? raw : raw.replace(/\r/g, '')
     debug(`input: ${input}`)
     const output = generateSarif(parser(input), toolName, analysisPath)
     info(`SARIF output: ${JSON.stringify(output, null, 2)}`)
