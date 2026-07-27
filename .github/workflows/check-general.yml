@@ -36,5 +36,6 @@ jobs:
           checks: |-
             GitHub Action.*
             Check.*
+            Jest.*
             .*[lL]int.*
           self: Required Checks
