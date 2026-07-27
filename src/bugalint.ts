@@ -15,7 +15,7 @@ interface Issue {
   col?: number
   eline?: number
   ecol?: number
-  fix?: string
+  fix?: string[]
 }
 
 export type Parser = (input: string) => Generator<Issue>
@@ -60,7 +60,7 @@ function* parsePylint(input: string): Generator<Issue> {
   }
 }
 
-function parseSarifFix(result: Result, region?: Region): string | undefined {
+function parseSarifFix(result: Result, region?: Region): string[] | undefined {
   const replacement = result.fixes?.[0]?.artifactChanges?.[0]?.replacements?.[0]
   const text = replacement?.insertedContent?.text
   if (replacement == null || text == null || region?.startLine == null) {
@@ -72,9 +72,9 @@ function parseSarifFix(result: Result, region?: Region): string | undefined {
     return undefined
   }
   if (deleted.endColumn == null) {
-    return (deleted.endLine ?? deleted.startLine) === endLine ? text : undefined
+    return (deleted.endLine ?? deleted.startLine) === endLine ? (text === '' ? [] : text.split('\n')) : undefined
   }
-  return deleted.endColumn === 1 && deleted.endLine === endLine + 1 ? text.replace(/\n$/, '') : undefined
+  return deleted.endColumn === 1 && deleted.endLine === endLine + 1 ? (text === '' ? [] : text.replace(/\n$/, '').split('\n')) : undefined
 }
 
 function* parseSarif(input: string): Generator<Issue> {
@@ -101,9 +101,86 @@ function* parseSarif(input: string): Generator<Issue> {
   }
 }
 
+function normalizeDiffLineEndings(diff: string): string {
+  return /^(?:diff --git |@@ ).*\r$/m.test(diff) ? diff.replace(/\r\n/g, '\n') : diff
+}
+
+function borrowNeighbor(
+  changes: parseDiff.Change[],
+  start: number,
+  end: number,
+  fix: string[],
+  range?: Pick<Issue, 'line' | 'eline'>
+): Pick<Issue, 'line' | 'eline' | 'fix'> | undefined {
+  const before = changes[start - 1]
+  const after = changes[end]
+  if (before?.type === 'normal') {
+    return { line: before.ln1, eline: range?.eline ?? before.ln1, fix: [before.content.slice(1), ...fix] }
+  }
+  if (after?.type === 'normal') {
+    return { line: range?.line ?? after.ln1, eline: after.ln1, fix: [...fix, after.content.slice(1)] }
+  }
+  return undefined
+}
+
+function* parseFormatDiff(input: string): Generator<Issue> {
+  for (const file of parseDiff(normalizeDiffLineEndings(input))) {
+    const filePath = file.from ?? file.to
+    if (filePath == null) {
+      continue
+    }
+    for (const chunk of file.chunks) {
+      const changes = chunk.changes.filter((change) => !change.content.startsWith('\\'))
+      let index = 0
+      while (index < changes.length) {
+        const start = index
+        const deleted: parseDiff.DeleteChange[] = []
+        const inserted: string[] = []
+        while (index < changes.length) {
+          const change = changes[index]
+          if (change.type !== 'del') {
+            break
+          }
+          deleted.push(change)
+          index++
+        }
+        while (index < changes.length) {
+          const change = changes[index]
+          if (change.type !== 'add') {
+            break
+          }
+          inserted.push(change.content.slice(1))
+          index++
+        }
+        let location: Pick<Issue, 'line' | 'eline' | 'fix'> | undefined
+        if (deleted.length > 0) {
+          const line = deleted[0].ln
+          const eline = deleted[deleted.length - 1].ln
+          const removed = deleted.map((change) => change.content.slice(1))
+          if (removed.length === inserted.length && removed.every((content, offset) => content === inserted[offset])) {
+            location = { line, eline }
+          } else if (inserted.length === 1 && inserted[0] === '') {
+            location = borrowNeighbor(changes, start, index, inserted, { line, eline }) ?? { line, eline }
+          } else {
+            location = { line, eline, fix: inserted }
+          }
+        } else if (inserted.length > 0) {
+          location = borrowNeighbor(changes, start, index, inserted)
+        } else {
+          index++
+        }
+        if (location != null) {
+          yield { level: 'warning', path: filePath, ...location }
+        }
+      }
+    }
+  }
+}
+
 const knownParsers: Record<string, Parser> = {
   pylint: parsePylint,
   sarif: parseSarif,
+  diff: parseFormatDiff,
   mypy: (input: string) =>
     parseRegex(
       input,
@@ -129,6 +206,13 @@ function normalizePath(givenPath: string, analysisPath: string): string {
   return path.relative('.', path.join(analysisPath, givenPath)).replace(/\\/g, '/')
 }
 
+function* appendMessage(issues: Generator<Issue>, message: string): Generator<Issue> {
+  for (const issue of issues) {
+    const msg = [issue.msg, message].filter((part) => part != null && part !== '').join(' ')
+    yield { ...issue, msg: msg === '' ? undefined : msg }
+  }
+}
+
 export function generateSarif(issues: Iterable<Issue>, identifier: string, analysisPath: string): Log {
   const rulesIndices: Record<string, number> = {}
   const rules: ReportingDescriptor[] = []
@@ -141,7 +225,7 @@ export function generateSarif(issues: Iterable<Issue>, identifier: string, analy
     }
     const uri = issue.path != null ? normalizePath(issue.path, analysisPath) : undefined
     results.push({
-      message: { text: issue.msg ?? undefined },
+      message: { text: issue.msg ?? '' },
       locations: [
         {
           physicalLocation: {
@@ -165,7 +249,12 @@ export function generateSarif(issues: Iterable<Issue>, identifier: string, analy
                 artifactChanges: [
                   {
                     artifactLocation: { uri },
-                    replacements: [{ deletedRegion: { startLine: issue.line, endLine: issue.eline ?? issue.line }, insertedContent: { text: issue.fix } }]
+                    replacements: [
+                      {
+                        deletedRegion: { startLine: issue.line, startColumn: 1, endLine: (issue.eline ?? issue.line) + 1, endColumn: 1 },
+                        insertedContent: { text: issue.fix.map((line) => `${line}\n`).join('') }
+                      }
+                    ]
                   }
                 ]
               }
@@ -183,25 +272,26 @@ export function generateSarif(issues: Iterable<Issue>, identifier: string, analy
   }
 }
 
-export function getKnownParser(identifier: string): Parser {
+export function getKnownParser(identifier: string, message: string): Parser {
   const parser = knownParsers[identifier]
   if (parser == null) {
     throw new Error(`Unrecognized: ${identifier}`)
   }
-  return parser
+  return (input: string) => appendMessage(parser(input), message)
 }
 
-export function getRegexParser(regex: RegExp, levelMap?: Record<string, Result.level>): Parser {
-  return (input: string) => parseRegex(input, regex, levelMap)
+export function getRegexParser(regex: RegExp, message: string, levelMap?: Record<string, Result.level>): Parser {
+  return (input: string) => appendMessage(parseRegex(input, regex, levelMap), message)
 }
 
 function buildCommentBody(commentTag: string, identifier: string, issue: Issue): string {
-  const body = `${commentTag}\n**${issue.msg}**\n[${[issue.level, identifier, issue.id, issue.sym].filter((n) => n).join(':')}]`
-  if (issue.fix == null) {
+  const identifiers = `[${[issue.level, identifier, issue.id, issue.sym].filter((n) => n).join(':')}]`
+  const body = `${commentTag}\n${[issue.msg != null && issue.msg !== '' ? `**${issue.msg}**` : undefined, identifiers].filter((n) => n).join('\n')}`
+  if (issue.fix == null || (issue.fix.length === 1 && issue.fix[0] === '')) {
     return body
   }
-  const fence = '`'.repeat(Math.max(3, ...Array.from(issue.fix.matchAll(/`+/g), (m) => m[0].length + 1)))
-  return `${body}\n${fence}suggestion\n${issue.fix === '' ? '' : `${issue.fix}\n`}${fence}`
+  const fence = '`'.repeat(Math.max(3, ...Array.from(issue.fix.join('\n').matchAll(/`+/g), (m) => m[0].length + 1)))
+  return `${body}\n${fence}suggestion\n${issue.fix.map((line) => `${line}\n`).join('')}${fence}`
 }
 
 export async function addComments(

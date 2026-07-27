@@ -6,21 +6,13 @@
       "tool": { "driver": { "name": "test", "rules": [] } },
       "results": [
         {
-          "locations": [
-            {
-              "physicalLocation": { "artifactLocation": { "uri": "A/B/main.py" }, "region": { "startColumn": 21, "startLine": 85 } }
-            }
-          ],
-          "message": { "text": "multiple spaces after ':'" },
+          "message": { "text": "multiple spaces after ':' Fix it" },
+          "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "A/B/main.py" }, "region": { "startLine": 85, "startColumn": 21 } } }],
           "ruleId": "E241"
         },
         {
-          "locations": [
-            {
-              "physicalLocation": { "artifactLocation": { "uri": "A/B/c/d/__init__.py" }, "region": { "startColumn": 1, "startLine": 139 } }
-            }
-          ],
-          "message": { "text": "expected 2 blank lines after class or function definition, found 1" },
+          "message": { "text": "expected 2 blank lines after class or function definition, found 1 Fix it" },
+          "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "A/B/c/d/__init__.py" }, "region": { "startLine": 139, "startColumn": 1 } } }],
           "ruleId": "E305"
         }
       ]

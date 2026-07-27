@@ -29997,9 +29997,9 @@ function parseSarifFix(result, region) {
         return undefined;
     }
     if (deleted.endColumn == null) {
-        return (deleted.endLine ?? deleted.startLine) === endLine ? text : undefined;
+        return (deleted.endLine ?? deleted.startLine) === endLine ? (text === '' ? [] : text.split('\n')) : undefined;
     }
-    return deleted.endColumn === 1 && deleted.endLine === endLine + 1 ? text.replace(/\n$/, '') : undefined;
+    return deleted.endColumn === 1 && deleted.endLine === endLine + 1 ? (text === '' ? [] : text.replace(/\n$/, '').split('\n')) : undefined;
 }
 function* parseSarif(input) {
     const log = JSON.parse(input);
@@ -30024,9 +30024,81 @@ function* parseSarif(input) {
         }
     }
 }
+function normalizeDiffLineEndings(diff) {
+    return /^(?:diff --git |@@ ).*\r$/m.test(diff) ? diff.replace(/\r\n/g, '\n') : diff;
+}
+function borrowNeighbor(changes, start, end, fix, range) {
+    const before = changes[start - 1];
+    const after = changes[end];
+    if (before?.type === 'normal') {
+        return { line: before.ln1, eline: range?.eline ?? before.ln1, fix: [before.content.slice(1), ...fix] };
+    }
+    if (after?.type === 'normal') {
+        return { line: range?.line ?? after.ln1, eline: after.ln1, fix: [...fix, after.content.slice(1)] };
+    }
+    return undefined;
+}
+function* parseFormatDiff(input) {
+    for (const file of (0, parse_diff_1.default)(normalizeDiffLineEndings(input))) {
+        const filePath = file.from ?? file.to;
+        if (filePath == null) {
+            continue;
+        }
+        for (const chunk of file.chunks) {
+            const changes = chunk.changes.filter((change) => !change.content.startsWith('\\'));
+            let index = 0;
+            while (index < changes.length) {
+                const start = index;
+                const deleted = [];
+                const inserted = [];
+                while (index < changes.length) {
+                    const change = changes[index];
+                    if (change.type !== 'del') {
+                        break;
+                    }
+                    deleted.push(change);
+                    index++;
+                }
+                while (index < changes.length) {
+                    const change = changes[index];
+                    if (change.type !== 'add') {
+                        break;
+                    }
+                    inserted.push(change.content.slice(1));
+                    index++;
+                }
+                let location;
+                if (deleted.length > 0) {
+                    const line = deleted[0].ln;
+                    const eline = deleted[deleted.length - 1].ln;
+                    const removed = deleted.map((change) => change.content.slice(1));
+                    if (removed.length === inserted.length && removed.every((content, offset) => content === inserted[offset])) {
+                        location = { line, eline };
+                    }
+                    else if (inserted.length === 1 && inserted[0] === '') {
+                        location = borrowNeighbor(changes, start, index, inserted, { line, eline }) ?? { line, eline };
+                    }
+                    else {
+                        location = { line, eline, fix: inserted };
+                    }
+                }
+                else if (inserted.length > 0) {
+                    location = borrowNeighbor(changes, start, index, inserted);
+                }
+                else {
+                    index++;
+                }
+                if (location != null) {
+                    yield { level: 'warning', path: filePath, ...location };
+                }
+            }
+        }
+    }
+}
 const knownParsers = {
     pylint: parsePylint,
     sarif: parseSarif,
+    diff: parseFormatDiff,
     mypy: (input) => parseRegex(input, /^(?<path>[^:\n]+):(?:(?<line>\d+):)?(?:(?<col>\d+):)?(?:(?<eline>\d+):)?(?:(?<ecol>\d+):)? (?<level>[^:\s]+): (?<msg>.+?)\s*(?:\[(?<id>\S+)\])?$/gm),
     flake8: (input) => parseRegex(input, /^(?<path>[^:\n]+):(?<line>\d+):(?<col>\d+): (?<id>\w\d+) (?<msg>[^\n]+)$/gm),
     mdl: (input) => parseRegex(input, /^(?<path>[^:\n]+)(?::(?<line>\d+))?(?::(?<col>\d+))? (?<id>[^/\n]+)\/(?<sym>[^\s]+) (?<msg>[^\n]+)$/gm),
@@ -30045,6 +30117,12 @@ function normalizePath(givenPath, analysisPath) {
     }
     return path_1.default.relative('.', path_1.default.join(analysisPath, givenPath)).replace(/\\/g, '/');
 }
+function* appendMessage(issues, message) {
+    for (const issue of issues) {
+        const msg = [issue.msg, message].filter((part) => part != null && part !== '').join(' ');
+        yield { ...issue, msg: msg === '' ? undefined : msg };
+    }
+}
 function generateSarif(issues, identifier, analysisPath) {
     const rulesIndices = {};
     const rules = [];
@@ -30056,7 +30134,7 @@ function generateSarif(issues, identifier, analysisPath) {
         }
         const uri = issue.path != null ? normalizePath(issue.path, analysisPath) : undefined;
         results.push({
-            message: { text: issue.msg ?? undefined },
+            message: { text: issue.msg ?? '' },
             locations: [
                 {
                     physicalLocation: {
@@ -30078,7 +30156,12 @@ function generateSarif(issues, identifier, analysisPath) {
                         artifactChanges: [
                             {
                                 artifactLocation: { uri },
-                                replacements: [{ deletedRegion: { startLine: issue.line, endLine: issue.eline ?? issue.line }, insertedContent: { text: issue.fix } }]
+                                replacements: [
+                                    {
+                                        deletedRegion: { startLine: issue.line, startColumn: 1, endLine: (issue.eline ?? issue.line) + 1, endColumn: 1 },
+                                        insertedContent: { text: issue.fix.map((line) => `${line}\n`).join('') }
+                                    }
+                                ]
                             }
                         ]
                     }
@@ -30095,23 +30178,24 @@ function generateSarif(issues, identifier, analysisPath) {
         runs: [{ tool: { driver: { name: identifier, rules } }, results }]
     };
 }
-function getKnownParser(identifier) {
+function getKnownParser(identifier, message) {
     const parser = knownParsers[identifier];
     if (parser == null) {
         throw new Error(`Unrecognized: ${identifier}`);
     }
-    return parser;
+    return (input) => appendMessage(parser(input), message);
 }
-function getRegexParser(regex, levelMap) {
-    return (input) => parseRegex(input, regex, levelMap);
+function getRegexParser(regex, message, levelMap) {
+    return (input) => appendMessage(parseRegex(input, regex, levelMap), message);
 }
 function buildCommentBody(commentTag, identifier, issue) {
-    const body = `${commentTag}\n**${issue.msg}**\n[${[issue.level, identifier, issue.id, issue.sym].filter((n) => n).join(':')}]`;
-    if (issue.fix == null) {
+    const identifiers = `[${[issue.level, identifier, issue.id, issue.sym].filter((n) => n).join(':')}]`;
+    const body = `${commentTag}\n${[issue.msg != null && issue.msg !== '' ? `**${issue.msg}**` : undefined, identifiers].filter((n) => n).join('\n')}`;
+    if (issue.fix == null || (issue.fix.length === 1 && issue.fix[0] === '')) {
         return body;
     }
-    const fence = '`'.repeat(Math.max(3, ...Array.from(issue.fix.matchAll(/`+/g), (m) => m[0].length + 1)));
-    return `${body}\n${fence}suggestion\n${issue.fix === '' ? '' : `${issue.fix}\n`}${fence}`;
+    const fence = '`'.repeat(Math.max(3, ...Array.from(issue.fix.join('\n').matchAll(/`+/g), (m) => m[0].length + 1)));
+    return `${body}\n${fence}suggestion\n${issue.fix.map((line) => `${line}\n`).join('')}${fence}`;
 }
 async function addComments(issues, prDiff, githubToken, identifier, owner, repo, prNumber, analysisPath) {
     /* eslint camelcase: ["error", {allow: ['^pull_number$', '^comment_id$', '^start_side$', '^start_line$']}] */
@@ -32167,6 +32251,12 @@ const fs_1 = __nccwpck_require__(9896);
 const github_1 = __nccwpck_require__(3228);
 const core_1 = __nccwpck_require__(7484);
 const bugalint_1 = __nccwpck_require__(8983);
+function getParser(inputFormat, inputRegex, levelMap, message) {
+    if (inputFormat === '') {
+        return (0, bugalint_1.getRegexParser)(new RegExp(inputRegex, 'gm'), message, levelMap === '' ? undefined : JSON.parse(levelMap));
+    }
+    return (0, bugalint_1.getKnownParser)(inputFormat, message);
+}
 async function run() {
     try {
         const inputFile = (0, core_1.getInput)('inputFile');
@@ -32181,10 +32271,10 @@ async function run() {
         const levelMap = (0, core_1.getInput)('levelMap');
         const analysisPath = (0, core_1.getInput)('analysisPath');
         const githubToken = (0, core_1.getInput)('githubToken');
-        const parser = inputFormat === ''
-            ? (0, bugalint_1.getRegexParser)(new RegExp(inputRegex, 'gm'), levelMap === '' ? undefined : JSON.parse(levelMap))
-            : (0, bugalint_1.getKnownParser)(inputFormat);
-        const input = (0, fs_1.readFileSync)(inputFile, 'utf-8').replace(/\r/g, '');
+        const message = (0, core_1.getInput)('message');
+        const parser = getParser(inputFormat, inputRegex, levelMap, message);
+        const raw = (0, fs_1.readFileSync)(inputFile, 'utf-8');
+        const input = inputFormat === 'diff' ? raw : raw.replace(/\r/g, '');
         (0, core_1.debug)(`input: ${input}`);
         const output = (0, bugalint_1.generateSarif)(parser(input), toolName, analysisPath);
         (0, core_1.info)(`SARIF output: ${JSON.stringify(output, null, 2)}`);
