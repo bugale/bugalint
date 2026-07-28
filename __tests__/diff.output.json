@@ -125,7 +125,7 @@
                   "replacements": [
                     {
                       "deletedRegion": { "startLine": 50, "startColumn": 1, "endLine": 51, "endColumn": 1 },
-                      "insertedContent": { "text": "  int last = 0;\n" }
+                      "insertedContent": { "text": "  int last = 0;\n\n" }
                     }
                   ]
                 }
@@ -154,6 +154,21 @@
         {
           "message": { "text": "Not formatted correctly" },
           "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "src/term.c" }, "region": { "startLine": 70, "endLine": 70 } } }],
+          "fixes": [
+            {
+              "artifactChanges": [
+                {
+                  "artifactLocation": { "uri": "src/term.c" },
+                  "replacements": [
+                    {
+                      "deletedRegion": { "startLine": 70, "startColumn": 1, "endLine": 71, "endColumn": 1 },
+                      "insertedContent": { "text": "  int last = 0;\n\n" }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
           "level": "warning"
         },
         {
