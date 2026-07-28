@@ -30052,6 +30052,8 @@ function* parseFormatDiff(input) {
             continue;
         }
         for (const chunk of file.chunks) {
+            const markers = chunk.changes.filter((change) => change.content.startsWith('\\'));
+            const eofNewlineAdded = markers.some((change) => change.type === 'del') && !markers.some((change) => change.type === 'add');
             const changes = chunk.changes.filter((change) => !change.content.startsWith('\\'));
             let index = 0;
             while (index < changes.length) {
@@ -30075,12 +30077,13 @@ function* parseFormatDiff(input) {
                     index++;
                 }
                 let location;
+                const terminatorAdded = eofNewlineAdded && index >= changes.length;
                 if (deleted.length > 0) {
                     const line = deleted[0].ln;
                     const eline = deleted[deleted.length - 1].ln;
                     const removed = deleted.map((change) => change.content.slice(1));
                     if (removed.length === inserted.length && removed.every((content, offset) => content === inserted[offset])) {
-                        location = { line, eline };
+                        location = terminatorAdded ? { line, eline, fix: inserted } : { line, eline };
                     }
                     else if (inserted.length === 1 && inserted[0] === '') {
                         location = borrowNeighbor(changes, start, index, inserted, { line, eline }) ?? { line, eline };
@@ -30096,6 +30099,9 @@ function* parseFormatDiff(input) {
                     index++;
                 }
                 if (location != null) {
+                    if (terminatorAdded && location.fix != null) {
+                        location = { ...location, fix: [...location.fix, ''] };
+                    }
                     yield { level: 'warning', path: filePath, ...location };
                 }
             }

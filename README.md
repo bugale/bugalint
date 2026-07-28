@@ -120,10 +120,12 @@ Every contiguous run of changed lines becomes one issue, rather than every hunk,
 reported range. Issues are anchored on the lines of the old side of the diff, which are the lines of the committed file that the pull request shows and that
 comments can be attached to, while the new side becomes the fix. A run that only adds lines has no line of its own to anchor to, so it is extended to a
 neighbouring line, preferring the preceding one, whose content is repeated in the fix. The marker `git diff` prints for a file that does not end with a newline
-is ignored, so the last line of such a file is reported like any other. A change of that terminator alone leaves the old and the new lines identical, so the
-issue is reported without a fix rather than with a suggestion replacing a line with itself. A run replacing lines with nothing deletes them, while one replacing
-them with an empty line blanks them, which is what a formatter stripping the whitespace of a blank line produces. GitHub cannot render a suggestion whose whole
-content is one empty line, so such a run is extended to a neighbouring line as well, and is reported without a fix when there is no line to extend to.
+is kept out of the fix, so the last line of such a file is reported like any other. When the formatter adds that terminator, the fix ends with an empty line,
+which is how a suggestion asks GitHub for a newline at the end of a file rather than for a blank line; a change of the terminator alone is therefore reported
+with a suggestion whose text repeats the line and adds that empty line. Removing the terminator is reported without a fix, since no suggestion can express it. A
+run replacing lines with nothing deletes them, while one replacing them with an empty line blanks them, which is what a formatter stripping the whitespace of a
+blank line produces. GitHub cannot render a suggestion whose whole content is one empty line, so such a run is extended to a neighbouring line as well, and is
+reported without a fix when there is no line to extend to.
 
 Note that a formatter that fails without writing anything produces an empty diff, which is indistinguishable from a formatter that found nothing to fix. The
 step running the formatter should therefore fail the job by itself.

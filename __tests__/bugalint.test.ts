@@ -372,14 +372,34 @@ describe('diffFormat', () => {
     })
   })
 
-  it('ignores the marker of a file not ending with a newline', () => {
-    expect(firstIssue([...header, '-int  a=0;', '\\ No newline at end of file', '+int a = 0;'])).toMatchObject({ line: 1, eline: 1, fix: ['int a = 0;'] })
+  it('keeps the marker of a file not ending with a newline out of the fix', () => {
+    expect(firstIssue([...header, '-int  a=0;', '\\ No newline at end of file', '+int a = 0;'])).toMatchObject({
+      line: 1,
+      eline: 1,
+      fix: ['int a = 0;', '']
+    })
   })
 
-  it('reports a change of the line terminator alone without a fix replacing a line with itself', () => {
-    const issue = firstIssue([...header, '-int a = 0;', '\\ No newline at end of file', '+int a = 0;'])
+  it('suggests a trailing empty line for a terminator added at the end of a file', () => {
+    expect(firstIssue([...header, '-int a = 0;', '\\ No newline at end of file', '+int a = 0;'])).toMatchObject({
+      line: 1,
+      eline: 1,
+      fix: ['int a = 0;', '']
+    })
+  })
+
+  it('reports a terminator removed at the end of a file without a fix', () => {
+    const issue = firstIssue([...header, '-int a = 0;', '+int a = 0;', '\\ No newline at end of file'])
     expect(issue).toMatchObject({ line: 1, eline: 1 })
     expect(issue).not.toHaveProperty('fix')
+  })
+
+  it('adds no trailing empty line when neither side of the change ends with a newline', () => {
+    expect(firstIssue([...header, '-int  a=0;', '\\ No newline at end of file', '+int a = 0;', '\\ No newline at end of file'])).toMatchObject({
+      line: 1,
+      eline: 1,
+      fix: ['int a = 0;']
+    })
   })
 
   it('extends a blanked line at the top of a file to the following line', () => {
