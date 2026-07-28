@@ -20,18 +20,23 @@ interface Issue {
 
 export type Parser = (input: string) => Generator<Issue>
 
+function normalizeEndLine(line?: number, eline?: number): number | undefined {
+  return line != null && eline != null && eline < line ? undefined : eline
+}
+
 function* parseRegex(input: string, regex: RegExp, levelMap?: Record<string, Result.level>): Generator<Issue> {
   for (const match of input.matchAll(regex)) {
     const groups = match.groups ?? {}
+    const line = groups.line != null ? parseInt(groups.line) : undefined
     yield {
       id: groups.id,
       sym: groups.sym,
       msg: groups.msg,
       level: levelMap == null ? (groups.level as Result.level) : levelMap[groups.level],
       path: groups.path,
-      line: groups.line != null ? parseInt(groups.line) : undefined,
+      line,
       col: groups.col != null ? parseInt(groups.col) : undefined,
-      eline: groups.eline != null ? parseInt(groups.eline) : undefined,
+      eline: normalizeEndLine(line, groups.eline != null ? parseInt(groups.eline) : undefined),
       ecol: groups.ecol != null ? parseInt(groups.ecol) : undefined
     }
   }
@@ -46,15 +51,17 @@ function* parsePylint(input: string): Generator<Issue> {
     error: 'error'
   }
   for (const issue of JSON.parse(input)) {
+    const line: number | undefined = issue.line
+    const endLine: number | undefined = issue.endLine
     yield {
       id: issue['message-id'],
       sym: issue.symbol,
       msg: issue.message,
       level: levelMap[issue.type],
       path: issue.path,
-      line: issue.line,
+      line,
       col: issue.column != null ? issue.column + 1 : undefined,
-      eline: issue.endLine,
+      eline: normalizeEndLine(line, endLine),
       ecol: issue.endColumn != null ? issue.endColumn + 1 : undefined
     }
   }
@@ -67,7 +74,7 @@ function parseSarifFix(result: Result, region?: Region): string[] | undefined {
     return undefined
   }
   const deleted = replacement.deletedRegion
-  const endLine = region.endLine ?? region.startLine
+  const endLine = normalizeEndLine(region.startLine, region.endLine) ?? region.startLine
   if (deleted.startLine !== region.startLine || (deleted.startColumn ?? 1) !== 1) {
     return undefined
   }
@@ -93,7 +100,7 @@ function* parseSarif(input: string): Generator<Issue> {
         path: issue.locations?.[0]?.physicalLocation?.artifactLocation?.uri,
         line: region?.startLine,
         col: region?.startColumn,
-        eline: region?.endLine,
+        eline: normalizeEndLine(region?.startLine, region?.endLine),
         ecol: region?.endColumn,
         fix: parseSarifFix(issue, region)
       }

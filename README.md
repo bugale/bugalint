@@ -194,6 +194,9 @@ such a region are accepted:
 Any other `deletedRegion`, such as one replacing a part of a line or lines other than the reported ones, cannot be rendered as a suggestion. Such a fix is
 ignored, and the issue is commented on without one.
 
+An `endLine` before its own `startLine` describes no range at all. In every input format such an end line is ignored and the issue is anchored on its start
+line alone, which is also what its fix is matched against. The generated SARIF therefore never reports a region ending before it starts.
+
 The text itself is never trimmed beyond the single line terminator described above, so an additional trailing newline is rendered as a trailing empty line.
 An empty `insertedContent.text` renders as an empty suggestion, which deletes the lines, in both forms. Replacing the lines with a single empty line is
 therefore expressible only in the second form, as a text of exactly one newline — in the first form that same replacement is written as an empty text, which

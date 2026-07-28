@@ -215,6 +215,100 @@ describe('sarifFix', () => {
   })
 })
 
+describe('invertedRange', () => {
+  interface ParsedIssue {
+    line?: number
+    eline?: number
+    fix?: string[]
+  }
+
+  const sarifLog = (region: Region, fix = false, deleted: Region = { startLine: 12 }): string =>
+    JSON.stringify({
+      version: '2.1.0',
+      runs: [
+        {
+          tool: { driver: { name: 'test' } },
+          results: [
+            {
+              message: { text: 'Message' },
+              locations: [{ physicalLocation: { artifactLocation: { uri: 'test.py' }, region } }],
+              fixes: fix
+                ? [
+                    {
+                      artifactChanges: [{ artifactLocation: { uri: 'test.py' }, replacements: [{ deletedRegion: deleted, insertedContent: { text: 'x' } }] }]
+                    }
+                  ]
+                : undefined
+            }
+          ]
+        }
+      ]
+    })
+
+  const sarifOf = (region: Region, fix = false, deleted?: Region): ParsedIssue => [...getKnownParser('sarif', '')(sarifLog(region, fix, deleted))][0]
+  const pylintOf = (line: number, endLine: number): ParsedIssue =>
+    [...getKnownParser('pylint', '')(JSON.stringify([{ type: 'warning', path: 'a.py', line, endLine }]))][0]
+  const regexOf = (input: string): ParsedIssue => [...getRegexParser(/^(?<line>\d+):(?<eline>\d+)$/gm, '')(input)][0]
+
+  it('drops a SARIF end line preceding the start line, keeping the anchor the producer got right', () => {
+    expect(sarifOf({ startLine: 12, endLine: 10 }).eline).toBeUndefined()
+    expect(sarifOf({ startLine: 12, endLine: 10 }).line).toBe(12)
+    expect(sarifOf({ startLine: 12, endLine: 12 }).eline).toBe(12)
+    expect(sarifOf({ startLine: 12, endLine: 14 }).eline).toBe(14)
+  })
+
+  it('drops a pylint end line preceding the start line', () => {
+    expect(pylintOf(12, 10).eline).toBeUndefined()
+    expect(pylintOf(12, 14).eline).toBe(14)
+  })
+
+  it('drops a captured end line preceding the start line', () => {
+    expect(regexOf('12:10').eline).toBeUndefined()
+    expect(regexOf('12:14').eline).toBe(14)
+  })
+
+  it('drops an end line one before the start line, where only the result region would have inverted', () => {
+    expect(sarifOf({ startLine: 12, endLine: 11 }).eline).toBeUndefined()
+    expect(pylintOf(12, 11).eline).toBeUndefined()
+    expect(regexOf('12:11').eline).toBeUndefined()
+  })
+
+  it('matches the fix of an inverted region against the start line alone', () => {
+    expect(sarifOf({ startLine: 12, endLine: 10 }, true).fix).toStrictEqual(['x'])
+    expect(sarifOf({ startLine: 12, endLine: 11 }, true).fix).toStrictEqual(['x'])
+  })
+
+  it('ignores a fix whose own deleted region ends before it starts', () => {
+    expect(sarifOf({ startLine: 12, endLine: 10 }, true, { startLine: 12, endLine: 10 }).fix).toBeUndefined()
+    expect(sarifOf({ startLine: 12, endLine: 11 }, true, { startLine: 12, endLine: 11 }).fix).toBeUndefined()
+  })
+
+  it('regenerates neither region of an inverted result inverted', () => {
+    for (const endLine of [10, 11]) {
+      const output = generateSarif([...getKnownParser('sarif', '')(sarifLog({ startLine: 12, endLine }, true))], 'test', '.')
+      expect(output).toBeValidSarifLog()
+      expect(output.runs[0].results?.[0].locations?.[0].physicalLocation?.region).toStrictEqual({
+        startLine: 12,
+        startColumn: undefined,
+        endLine: undefined,
+        endColumn: undefined
+      })
+      expect(output.runs[0].results?.[0].fixes?.[0].artifactChanges[0].replacements[0].deletedRegion).toStrictEqual({
+        startLine: 12,
+        startColumn: 1,
+        endLine: 13,
+        endColumn: 1
+      })
+    }
+  })
+
+  it('never reaches a comment anchor whose start follows its end', () => {
+    const diffLines = parseDiffLines('diff --git a/t.py b/t.py\n--- a/t.py\n+++ b/t.py\n@@ -1,1 +1,3 @@\n x\n+y\n+z\n')
+    expect(isCommentableIssue({ path: 't.py', line: 2, eline: 3 }, diffLines, '.')).toBe(true)
+    expect(isCommentableIssue({ path: 't.py', line: 3, eline: 2 }, diffLines, '.')).toBe(false)
+  })
+})
+
 describe('diffFormat', () => {
   const diffOf = (lines: string[], terminator = '\n'): string => lines.map((line) => `${line}${terminator}`).join('')
   const header = ['diff --git a/a.c b/a.c', 'index 1111111..2222222 100644', '--- a/a.c', '+++ b/a.c', '@@ -1,1 +1,1 @@']
