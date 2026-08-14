@@ -7,7 +7,7 @@ import {
   getRegexParser,
   parseDiffLines,
   isNewIssue,
-  isCommentableIssue,
+  getCommentAnchor,
   failOnIssues,
   filterNewIssues,
   _testExports,
@@ -75,11 +75,26 @@ index 1111111..2222222 100644
     expect(isNewIssue({ path: 'A/B/test.py' }, diffLines, '.')).toBe(false)
   })
 
-  it('comments only on issues whose whole range is in the diff', () => {
-    expect(isCommentableIssue({ path: 'A/B/test.py', line: 1, eline: 3 }, diffLines, '.')).toBe(true)
-    expect(isCommentableIssue({ path: 'A/B/test.py', line: 3, eline: 4 }, diffLines, '.')).toBe(false)
-    expect(isCommentableIssue({ path: 'A/B/other.py', line: 1 }, diffLines, '.')).toBe(false)
-    expect(isCommentableIssue({ path: 'A/B/test.py' }, diffLines, '.')).toBe(false)
+  it('anchors a comment on the whole range when the diff shows all of it', () => {
+    const anchor = { path: 'A/B/test.py', line: 1, eline: 3, partial: false }
+    expect(getCommentAnchor({ path: 'A/B/test.py', line: 1, eline: 3 }, diffLines, '.')).toStrictEqual(anchor)
+  })
+
+  it('anchors a comment on the shown part of a range the diff cuts off', () => {
+    const anchor = { path: 'A/B/test.py', line: 3, eline: 3, partial: true }
+    expect(getCommentAnchor({ path: 'A/B/test.py', line: 3, eline: 4 }, diffLines, '.')).toStrictEqual(anchor)
+  })
+
+  it('relativizes the anchor path to the analysis path', () => {
+    const anchor = { path: 'A/B/test.py', line: 3, eline: 3, partial: false }
+    expect(getCommentAnchor({ path: 'test.py', line: 3 }, diffLines, 'A\\B')).toStrictEqual(anchor)
+  })
+
+  it('anchors nothing on an issue the diff does not add', () => {
+    expect(getCommentAnchor({ path: 'A/B/test.py', line: 1 }, diffLines, '.')).toBeUndefined()
+    expect(getCommentAnchor({ path: 'A/B/other.py', line: 1 }, diffLines, '.')).toBeUndefined()
+    expect(getCommentAnchor({ path: 'A/B/test.py' }, diffLines, '.')).toBeUndefined()
+    expect(getCommentAnchor({ line: 2 }, diffLines, '.')).toBeUndefined()
   })
 
   describe('failOnIssues', () => {
@@ -149,6 +164,46 @@ describe('commentBody', () => {
 
   it('uses a fence longer than the longest backtick run in the fix', () => {
     expect(body(['doc = "```"'])).toBe(`${header}\n\`\`\`\`suggestion\ndoc = "\`\`\`"\n\`\`\`\``)
+  })
+})
+
+describe('fixBeyondDiff', () => {
+  const diff = [
+    'diff --git a/A.cpp b/A.cpp',
+    'index 1111111..2222222 100644',
+    '--- a/A.cpp',
+    '+++ b/A.cpp',
+    '@@ -874,7 +874,7 @@',
+    ' &obja,',
+    ' &iosb,',
+    ' nullptr,',
+    '-    FLAG_A | FLAG_B | FLAG_C,',
+    '+    FLAG_A | FLAG_B,',
+    ' nullptr,',
+    ' 0,',
+    ' CreateFileTypeNone,',
+    ''
+  ].join('\n')
+  const diffLines = parseDiffLines(diff)
+  const issue = { level: 'warning' as const, path: 'A.cpp', line: 868, eline: 883, fix: ['status = f(a,', '          b);'] }
+  const tag = '<!-- bugale/bugalint clang-format -->'
+
+  it('anchors on the lines the hunk shows when the fix reaches past both of its ends', () => {
+    expect(getCommentAnchor(issue, diffLines, '.')).toStrictEqual({ path: 'A.cpp', line: 874, eline: 880, partial: true })
+  })
+
+  it('offers the fix as plain text rather than a suggestion, naming the lines it covers', () => {
+    expect(_testExports.buildCommentBody(tag, 'clang-format', issue, true)).toBe(
+      `${tag}\n[warning:clang-format]\n` +
+        'The pull request diff does not show all of lines 868-883, so this replacement cannot be offered as a suggestion:\n' +
+        '```\nstatus = f(a,\n          b);\n```'
+    )
+  })
+
+  it('still offers a suggestion once the diff shows the whole fix', () => {
+    expect(_testExports.buildCommentBody(tag, 'clang-format', issue)).toBe(
+      `${tag}\n[warning:clang-format]\n\`\`\`suggestion\nstatus = f(a,\n          b);\n\`\`\``
+    )
   })
 })
 
@@ -304,8 +359,8 @@ describe('invertedRange', () => {
 
   it('never reaches a comment anchor whose start follows its end', () => {
     const diffLines = parseDiffLines('diff --git a/t.py b/t.py\n--- a/t.py\n+++ b/t.py\n@@ -1,1 +1,3 @@\n x\n+y\n+z\n')
-    expect(isCommentableIssue({ path: 't.py', line: 2, eline: 3 }, diffLines, '.')).toBe(true)
-    expect(isCommentableIssue({ path: 't.py', line: 3, eline: 2 }, diffLines, '.')).toBe(false)
+    expect(getCommentAnchor({ path: 't.py', line: 2, eline: 3 }, diffLines, '.')).toStrictEqual({ path: 't.py', line: 2, eline: 3, partial: false })
+    expect(getCommentAnchor({ path: 't.py', line: 3, eline: 2 }, diffLines, '.')).toBeUndefined()
   })
 })
 

@@ -297,14 +297,19 @@ export function getRegexParser(regex: RegExp, message: string, levelMap?: Record
   return (input: string) => appendMessage(parseRegex(input, regex, levelMap), message)
 }
 
-function buildCommentBody(commentTag: string, identifier: string, issue: Issue): string {
+function buildCommentBody(commentTag: string, identifier: string, issue: Issue, partial = false): string {
   const identifiers = `[${[issue.level, identifier, issue.id, issue.sym].filter((n) => n).join(':')}]`
   const body = `${commentTag}\n${[issue.msg != null && issue.msg !== '' ? `**${issue.msg}**` : undefined, identifiers].filter((n) => n).join('\n')}`
   if (issue.fix == null || (issue.fix.length === 1 && issue.fix[0] === '')) {
     return body
   }
   const fence = '`'.repeat(Math.max(3, ...Array.from(issue.fix.join('\n').matchAll(/`+/g), (m) => m[0].length + 1)))
-  return `${body}\n${fence}suggestion\n${issue.fix.map((line) => `${line}\n`).join('')}${fence}`
+  const fix = issue.fix.map((line) => `${line}\n`).join('')
+  if (!partial) {
+    return `${body}\n${fence}suggestion\n${fix}${fence}`
+  }
+  const note = `The pull request diff does not show all of lines ${issue.line}-${issue.eline ?? issue.line}, so this replacement cannot be offered as a suggestion:`
+  return `${body}\n${note}\n${fence}\n${fix}${fence}`
 }
 
 export async function addComments(
@@ -336,8 +341,9 @@ export async function addComments(
   const comments = []
   for (const issue of issues) {
     debug(`Processing issue on ${issue.path}:${issue.line}`)
-    if (!isCommentableIssue(issue, diffLines, analysisPath)) {
-      debug(`Skipping issue on ${issue.path}:${issue.line} because it is not on lines the pull request diff shows`)
+    const anchor = getCommentAnchor(issue, diffLines, analysisPath)
+    if (anchor == null) {
+      debug(`Skipping issue on ${issue.path}:${issue.line} because it is not on lines the pull request adds`)
       continue
     }
     if (comments.length >= 50) {
@@ -345,14 +351,13 @@ export async function addComments(
       break
     }
 
-    const endLine = issue.eline ?? issue.line
     const args = {
-      path: normalizePath(issue.path, analysisPath),
+      path: anchor.path,
       side: 'RIGHT',
       start_side: 'RIGHT',
-      line: endLine,
-      start_line: endLine === issue.line ? undefined : issue.line,
-      body: buildCommentBody(commentTag, identifier, issue)
+      line: anchor.eline,
+      start_line: anchor.eline === anchor.line ? undefined : anchor.line,
+      body: buildCommentBody(commentTag, identifier, issue, anchor.partial)
     }
     debug(`Generating comment ${JSON.stringify(args)}`)
     comments.push(args)
@@ -421,12 +426,37 @@ export function isNewIssue(issue: Issue, diffLines: DiffLines, analysisPath: str
   return issueLines(issue.line, issue.eline).some((line) => lines?.[line] ?? false)
 }
 
-export function isCommentableIssue(issue: Issue, diffLines: DiffLines, analysisPath: string): issue is Issue & Required<Pick<Issue, 'path' | 'line'>> {
-  if (!isNewIssue(issue, diffLines, analysisPath)) {
-    return false
+export interface CommentAnchor {
+  path: string
+  line: number
+  eline: number
+  partial: boolean
+}
+
+export function getCommentAnchor(issue: Issue, diffLines: DiffLines, analysisPath: string): CommentAnchor | undefined {
+  if (issue.path == null || issue.line == null) {
+    return undefined
   }
-  const lines: Record<number, boolean> | undefined = diffLines[normalizePath(issue.path, analysisPath)]
-  return issueLines(issue.line, issue.eline).every((line) => lines?.[line] != null)
+  const commentPath = normalizePath(issue.path, analysisPath)
+  const lines: Record<number, boolean> | undefined = diffLines[commentPath]
+  const eline = issue.eline ?? issue.line
+  const range = issueLines(issue.line, eline)
+  const added = range.find((line) => lines?.[line] ?? false)
+  if (added == null) {
+    return undefined
+  }
+  if (range.every((line) => lines?.[line] != null)) {
+    return { path: commentPath, line: issue.line, eline, partial: false }
+  }
+  let start = added
+  let end = added
+  while (start > issue.line && lines?.[start - 1] != null) {
+    start--
+  }
+  while (end < eline && lines?.[end + 1] != null) {
+    end++
+  }
+  return { path: commentPath, line: start, eline: end, partial: true }
 }
 
 export function filterNewIssues(issues: Iterable<Issue>, prDiff: string, analysisPath: string): Issue[] {

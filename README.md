@@ -39,8 +39,9 @@ steps:
   repository. If set to an empty string, the action will not write a SARIF file. The SARIF is always generated and printed to the workflow log.
 
 - `comment`: Set to true to comment on the PR with the issues. If set to false or ommitted, the action will not comment on the PR. Issues that carry a fix are
-  commented as [suggested changes](#suggested-changes). An issue is commented on only if every line it spans is part of the pull request's diff, as GitHub
-  rejects comments anchored outside it.
+  commented as [suggested changes](#suggested-changes). An issue is commented on only if the pull request's diff adds at least one of the lines it spans, as
+  GitHub rejects comments anchored outside the diff. An issue whose range reaches beyond what the diff shows is anchored on the part of it that the diff does
+  show, and its fix is then rendered as plain text rather than as a suggestion, since applying it would rewrite lines the pull request does not show.
 
 - `summary`: True by default - generates a markdown summary for the job. If set to false, the action will not generate a markdown summary.
 
@@ -209,6 +210,11 @@ it deletes the lines instead of blanking them. A fix replacing the lines with a 
 commented as a suggestion. To have one commented, widen the replacement to cover a neighbouring line as well, so that its text is not a lone newline.
 
 The fixes Bugalint writes out always use the second form, so a fix survives being read back from a SARIF file that Bugalint itself generated.
+
+A fix is offered as a suggestion only when the pull request's diff shows every line the issue spans. A formatter reformatting a whole statement because one of
+its lines changed reports a range reaching past the three context lines the diff carries around that change, and GitHub rejects a comment anchored outside the
+diff. Such an issue is still commented on, anchored on the lines of its range that the diff does show, with its fix rendered as a plain code block and a note
+naming the lines it covers, since applying it in one click would rewrite lines the pull request does not show.
 
 ### Example With Custom Regex
 
