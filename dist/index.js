@@ -30271,7 +30271,8 @@ function decodeDiff(data) {
 }
 async function getPrDiff(githubToken, owner, repo, prNumber) {
     const octokit = (0, github_1.getOctokit)(githubToken);
-    return decodeDiff((await octokit.rest.pulls.get({ owner, repo, pull_number: prNumber, mediaType: { format: 'diff' } })).data);
+    const { base, head } = (await octokit.rest.pulls.get({ owner, repo, pull_number: prNumber })).data;
+    return decodeDiff((await octokit.rest.repos.compareCommits({ owner, repo, base: base.sha, head: head.sha, mediaType: { format: 'diff' } })).data);
 }
 function parseDiffLines(diff) {
     const diffLines = {};
