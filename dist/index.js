@@ -30257,7 +30257,12 @@ async function addComments(issues, prDiff, githubToken, identifier, owner, repo,
         return;
     }
     (0, core_1.debug)('Sending comments');
-    await octokit.rest.pulls.createReview({ owner, repo, pull_number: prNumber, event: 'COMMENT', comments });
+    try {
+        await octokit.rest.pulls.createReview({ owner, repo, pull_number: prNumber, event: 'COMMENT', comments });
+    }
+    catch (error) {
+        (0, core_1.warning)(`Failed to post the comments as a review: ${error instanceof Error ? error.message : String(error)}`);
+    }
     (0, core_1.debug)('Sent comments');
 }
 function decodeDiff(data) {

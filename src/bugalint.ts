@@ -367,7 +367,11 @@ export async function addComments(
     return
   }
   debug('Sending comments')
-  await octokit.rest.pulls.createReview({ owner, repo, pull_number: prNumber, event: 'COMMENT', comments })
+  try {
+    await octokit.rest.pulls.createReview({ owner, repo, pull_number: prNumber, event: 'COMMENT', comments })
+  } catch (error) {
+    warning(`Failed to post the comments as a review: ${error instanceof Error ? error.message : String(error)}`)
+  }
   debug('Sent comments')
 }
 
