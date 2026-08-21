@@ -48,7 +48,7 @@ export async function run(): Promise<void> {
       if (prNumber == null) {
         throw new Error('No pull request number found.')
       }
-      pullRequest ??= [prNumber, await getPrDiff(githubToken, context.repo.owner, context.repo.repo, prNumber)]
+      pullRequest ??= [prNumber, await getPrDiff(githubToken, context.repo.owner, context.repo.repo)]
       return pullRequest
     }
 

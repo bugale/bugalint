@@ -1,5 +1,5 @@
 import type { Log, Region, ReportingDescriptor, Result } from 'sarif'
-import { getOctokit } from '@actions/github'
+import { context, getOctokit } from '@actions/github'
 import { debug, warning, summary } from '@actions/core'
 import path from 'path'
 import parseDiff from 'parse-diff'
@@ -387,9 +387,13 @@ function decodeDiff(data: unknown): string {
   throw new Error(`The pull request diff was returned as ${typeof data} rather than text, so no issue can be matched against the pull request`)
 }
 
-export async function getPrDiff(githubToken: string, owner: string, repo: string, prNumber: number): Promise<string> {
+export async function getPrDiff(githubToken: string, owner: string, repo: string): Promise<string> {
   const octokit = getOctokit(githubToken)
-  const { base, head } = (await octokit.rest.pulls.get({ owner, repo, pull_number: prNumber })).data
+  const pr = context.payload.pull_request as ({ base: { sha: string } } & { head: { sha: string } }) | undefined
+  if (pr == null) {
+    throw new Error('No pull request payload found.')
+  }
+  const { base, head } = pr
   return decodeDiff((await octokit.rest.repos.compareCommits({ owner, repo, base: base.sha, head: head.sha, mediaType: { format: 'diff' } })).data)
 }
 

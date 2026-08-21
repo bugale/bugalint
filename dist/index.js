@@ -30274,9 +30274,13 @@ function decodeDiff(data) {
     }
     throw new Error(`The pull request diff was returned as ${typeof data} rather than text, so no issue can be matched against the pull request`);
 }
-async function getPrDiff(githubToken, owner, repo, prNumber) {
+async function getPrDiff(githubToken, owner, repo) {
     const octokit = (0, github_1.getOctokit)(githubToken);
-    const { base, head } = (await octokit.rest.pulls.get({ owner, repo, pull_number: prNumber })).data;
+    const pr = github_1.context.payload.pull_request;
+    if (pr == null) {
+        throw new Error('No pull request payload found.');
+    }
+    const { base, head } = pr;
     return decodeDiff((await octokit.rest.repos.compareCommits({ owner, repo, base: base.sha, head: head.sha, mediaType: { format: 'diff' } })).data);
 }
 function parseDiffLines(diff) {
@@ -32338,7 +32342,7 @@ async function run() {
             if (prNumber == null) {
                 throw new Error('No pull request number found.');
             }
-            pullRequest ??= [prNumber, await (0, bugalint_1.getPrDiff)(githubToken, github_1.context.repo.owner, github_1.context.repo.repo, prNumber)];
+            pullRequest ??= [prNumber, await (0, bugalint_1.getPrDiff)(githubToken, github_1.context.repo.owner, github_1.context.repo.repo)];
             return pullRequest;
         };
         let issues = [...parser(input)];
